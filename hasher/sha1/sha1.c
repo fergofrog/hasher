@@ -63,6 +63,29 @@ char sha1_add_string(char *str)
 	}
 }
 
+char sha1_add_file(FILE *fp)
+{
+	if (in_hash) {
+		int c = fgetc(fp);
+		while (c != EOF) {
+			cur_chunk[cur_chunk_pos / 4][cur_chunk_pos % 4] = (unsigned char) c;
+			cur_chunk_pos++;
+			hash_length += 8;
+
+			if (cur_chunk_pos >= 64) {
+				sha1_add_chunk();
+				cur_chunk_pos = 0;
+			}
+
+			c = fgetc(fp);
+		};
+
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
 char sha1_get_hash(unsigned int hash_out[])
 {
 	if (in_hash) {

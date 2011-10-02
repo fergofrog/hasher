@@ -66,6 +66,27 @@ char md5_init()
 	}
 }
 
+char md5_add_string(char *str)
+{
+	if (in_hash) {
+		int i;
+		for (i = 0; str[i] != '\0'; i++) {
+			cur_chunk[cur_chunk_pos / 4][cur_chunk_pos % 4] = str[i];
+			cur_chunk_pos++;
+			hash_length += 8;
+
+			if (cur_chunk_pos >= 64) {
+				md5_add_chunk();
+				cur_chunk_pos = 0;
+			}
+		}
+
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
 char md5_add_file(FILE *fp)
 {
 	if (in_hash) {
@@ -82,28 +103,6 @@ char md5_add_file(FILE *fp)
 
 			c = fgetc(fp);
 		};
-
-		return 1;
-	} else {
-		return 0;
-	}
-}
-
-char md5_add_string(char *str, unsigned int len)
-{
-	if (in_hash) {
-		int i;
-		for (i = 0; i < len; i++) {
-			cur_chunk[cur_chunk_pos / 4][cur_chunk_pos % 4] = str[i];
-			cur_chunk_pos++;
-
-			if (cur_chunk_pos >= 64) {
-				md5_add_chunk();
-				cur_chunk_pos = 0;
-			}
-		}
-
-		hash_length += len * 8;
 
 		return 1;
 	} else {

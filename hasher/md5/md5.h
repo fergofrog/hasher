@@ -9,7 +9,7 @@
 #define MD5_H_
 
 char md5_init();
-char md5_add_string(char *, unsigned int);
+char md5_add_string(char *);
 char md5_add_file(FILE *);
 char md5_get_hash(unsigned int []);
 

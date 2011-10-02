@@ -98,16 +98,15 @@ int main(int argc, char *argv[])
 
 	unsigned int hash_out[5];
 	char hash_out_str[41];
+	FILE *fp;
 
 	switch (hash) {
 	case MD5:
 		md5_init();
 		if (string_input && string_to_process != NULL) {
-			unsigned int len = (unsigned int) strlen(string_to_process);
-
-			md5_add_string(string_to_process, len);
+			md5_add_string(string_to_process);
 		} else if (file_input) {
-			FILE *fp = fopen(file_to_process, "r");
+			fp = fopen(file_to_process, "r");
 			md5_add_file(fp);
 		}
 		md5_get_hash(hash_out);
@@ -137,8 +136,8 @@ int main(int argc, char *argv[])
 		if (string_input && string_to_process != NULL) {
 			sha1_add_string(string_to_process);
 		} else if (file_input) {
-			//FILE *fp = fopen(file_to_process, "r");
-			//sha1_add_file(fp);
+			fp = fopen(file_to_process, "r");
+			sha1_add_file(fp);
 		}
 		sha1_get_hash(hash_out);
 
