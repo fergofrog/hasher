@@ -163,7 +163,6 @@ unsigned int l_rot(unsigned int value, unsigned int shift)
 	return (value << shift) | (value >> (32 - shift));
 }
 
-//TODO: Globalise add_chunk (a-d goes out)
 void add_chunk()
 {
 	unsigned int func_out, word_idx;
