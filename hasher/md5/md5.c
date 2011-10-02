@@ -9,10 +9,10 @@
 
 #include "md5.h"
 
-#define FUNC_F(X, Y, Z) (((X) & (Y)) | (~(X) & (Z)))
-#define FUNC_G(X, Y, Z) (((X) & (Z)) | ((Y) & ~(Z)))
-#define FUNC_H(X, Y, Z) ((X) ^ (Y) ^ (Z))
-#define FUNC_I(X, Y, Z) ((Y) ^ ((X) | ~(Z)))
+#define MD5_FUNC_F(X, Y, Z) (((X) & (Y)) | (~(X) & (Z)))
+#define MD5_FUNC_G(X, Y, Z) (((X) & (Z)) | ((Y) & ~(Z)))
+#define MD5_FUNC_H(X, Y, Z) ((X) ^ (Y) ^ (Z))
+#define MD5_FUNC_I(X, Y, Z) ((Y) ^ ((X) | ~(Z)))
 
 //const int shiftAmounts[] = {7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
 //                            5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20,
@@ -39,14 +39,15 @@ const unsigned int operation_constants[64] = {0xd76aa478, 0xe8c7b756, 0x242070db
 		                                   0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
 		                                   0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391};
 
-unsigned int hash[4];
-unsigned long long hash_length;
-char in_hash = 0;
-unsigned char cur_chunk[16][4], cur_chunk_pos;
+extern unsigned int hash[5];
+extern unsigned long long hash_length;
+extern char in_hash;
+extern unsigned char cur_chunk[80][4], cur_chunk_pos;
 
-void add_chunk();
-unsigned int b_to_w(unsigned char []);
-void ll_to_b(unsigned long long, unsigned char []);
+void md5_add_chunk();
+unsigned int md5_l_rot(unsigned int, unsigned int);
+unsigned int md5_b_to_w(unsigned char []);
+void md5_ll_to_b(unsigned long long, unsigned char []);
 
 char md5_init()
 {
@@ -56,6 +57,7 @@ char md5_init()
 		hash[2] = 0x98BADCFE;
 		hash[3] = 0x10325476;
 
+		hash_length = 0;
 		cur_chunk_pos = 0;
 
 		in_hash = 1;
@@ -76,7 +78,7 @@ char md5_add_file(FILE *fp)
 			hash_length += 8;
 
 			if (cur_chunk_pos >= 64) {
-				add_chunk();
+				md5_add_chunk();
 				cur_chunk_pos = 0;
 			}
 
@@ -98,7 +100,7 @@ char md5_add_string(char *str, unsigned int len)
 			cur_chunk_pos++;
 
 			if (cur_chunk_pos >= 64) {
-				add_chunk();
+				md5_add_chunk();
 				cur_chunk_pos = 0;
 			}
 		}
@@ -125,7 +127,7 @@ char md5_get_hash(unsigned int hash_out[])
 				cur_chunk_pos++;
 			}
 
-			add_chunk();
+			md5_add_chunk();
 			cur_chunk_pos = 0;
 		}
 
@@ -137,14 +139,14 @@ char md5_get_hash(unsigned int hash_out[])
 
 		/* Append length */
 		unsigned char length_b[8];
-		ll_to_b(hash_length, length_b);
+		md5_ll_to_b(hash_length, length_b);
 		while (cur_chunk_pos < 64) {
 			cur_chunk[cur_chunk_pos / 4][cur_chunk_pos % 4] = length_b[cur_chunk_pos - 56];
 			cur_chunk_pos++;
 		}
 
 		/* Process the chunk */
-		add_chunk();
+		md5_add_chunk();
 
 		/* Copy the hash over */
 		hash_out[0] = hash[0];
@@ -152,18 +154,15 @@ char md5_get_hash(unsigned int hash_out[])
 		hash_out[2] = hash[2];
 		hash_out[3] = hash[3];
 
+		in_hash = 0;
+
 		return 1;
 	} else {
 		return 0;
 	}
 }
 
-unsigned int l_rot(unsigned int value, unsigned int shift)
-{
-	return (value << shift) | (value >> (32 - shift));
-}
-
-void add_chunk()
+void md5_add_chunk()
 {
 	unsigned int func_out, word_idx;
 	int i;
@@ -172,23 +171,23 @@ void add_chunk()
 
 	for (i = 0; i < 64; i++) {
 		if (i >= 0 && i < 16) {
-			func_out = FUNC_F(b, c, d);
+			func_out = MD5_FUNC_F(b, c, d);
 			word_idx = i;
 		} else if (i >= 16 && i < 32) {
-			func_out = FUNC_G(b, c, d);
+			func_out = MD5_FUNC_G(b, c, d);
 			word_idx = (5 * i + 1) % 16;
 		} else if (i >= 32 && i < 48) {
-			func_out = FUNC_H(b, c, d);
+			func_out = MD5_FUNC_H(b, c, d);
 			word_idx = (3 * i + 5) % 16;
 		} else {
-			func_out = FUNC_I(b, c, d);
+			func_out = MD5_FUNC_I(b, c, d);
 			word_idx = (7 * i) % 16;
 		}
 
 		unsigned int tmp = d;
 		d = c;
 		c = b;
-		b = b + l_rot(a + func_out + operation_constants[i] + b_to_w(cur_chunk[word_idx]), shift_amounts[i / 16][i % 4]);
+		b = b + md5_l_rot(a + func_out + operation_constants[i] + md5_b_to_w(cur_chunk[word_idx]), shift_amounts[i / 16][i % 4]);
 		a = tmp;
 	}
 
@@ -198,14 +197,24 @@ void add_chunk()
 	hash[3] += d;
 }
 
-unsigned int b_to_w(unsigned char b[])
+unsigned int md5_l_rot(unsigned int value, unsigned int shift)
 {
-	return b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24);
-	//return b[3] | (b[2] << 8) | (b[1] << 16) | (b[0] << 24);
+	return (value << shift) | (value >> (32 - shift));
 }
 
-void ll_to_b(unsigned long long ll, unsigned char b[])
+unsigned int md5_b_to_w(unsigned char b[])
 {
+	/* Little Endian */
+	return b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24);
+	/* Big Endian */
+	/*
+	return b[3] | (b[2] << 8) | (b[1] << 16) | (b[0] << 24);
+	 */
+}
+
+void md5_ll_to_b(unsigned long long ll, unsigned char b[])
+{
+	/* Little Endian */
 	b[0] = (ll & 0x00000000000000FF) >>  0;
 	b[1] = (ll & 0x000000000000FF00) >>  8;
 	b[2] = (ll & 0x0000000000FF0000) >> 16;
@@ -214,4 +223,15 @@ void ll_to_b(unsigned long long ll, unsigned char b[])
 	b[5] = (ll & 0x0000FF0000000000) >> 40;
 	b[6] = (ll & 0x00FF000000000000) >> 48;
 	b[7] = (ll & 0xFF00000000000000) >> 56;
+	/* Big Endian */
+	/*
+	b[7] = (ll & 0x00000000000000FF) >>  0;
+	b[6] = (ll & 0x000000000000FF00) >>  8;
+	b[5] = (ll & 0x0000000000FF0000) >> 16;
+	b[4] = (ll & 0x00000000FF000000) >> 24;
+	b[3] = (ll & 0x000000FF00000000) >> 32;
+	b[2] = (ll & 0x0000FF0000000000) >> 40;
+	b[1] = (ll & 0x00FF000000000000) >> 48;
+	b[0] = (ll & 0xFF00000000000000) >> 56;
+	 */
 }

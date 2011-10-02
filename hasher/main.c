@@ -8,9 +8,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "global.h"
 #include "md5/md5.h"
+#include "sha1/sha1.h"
 
-#define VERSION "0.1"
+#define VERSION "0.2"
 
 #define TRUE 1
 #define FALSE 0
@@ -27,8 +29,9 @@ void print_version()
 
 void print_help(char *program)
 {
-	printf("usage: %s [-h] [--md5] [-s string] [-f file]\n\n", program);
+	printf("usage: %s [-h] [--md5] [--sha1] [-s string] [-f file]\n\n", program);
 	printf("\t    --md5\tuse md5\n");
+	printf("\t    --sha1\tuse sha1\n");
 	printf("\t-s, --string\tstring input\n");
 	printf("\t-f, --file\tfile input\n");
 	printf("\t-h, --help\tthis message\n");
@@ -42,7 +45,7 @@ int main(int argc, char *argv[])
 	char *string_to_process;
 	char *file_to_process;
 
-	unsigned int hash_out[4];
+	in_hash = 0;
 
 	int i = 1;
 	while (i < argc) {
@@ -50,6 +53,8 @@ int main(int argc, char *argv[])
 		case '-':
 			if (strcmp(argv[i] + 2, "md5") == 0) {
 				hash = MD5;
+			} else if (strcmp(argv[i] + 2, "sha1") == 0) {
+				hash = SHA1;
 			} else if (strcmp(argv[i] + 2, "string") == 0) {
 				string_input = TRUE;
 				string_to_process = argv[++i];
@@ -91,10 +96,13 @@ int main(int argc, char *argv[])
 		i++;
 	}
 
+	unsigned int hash_out[5];
+	char hash_out_str[41];
+
 	switch (hash) {
 	case MD5:
 		md5_init();
-		if (string_input) {
+		if (string_input && string_to_process != NULL) {
 			unsigned int len = (unsigned int) strlen(string_to_process);
 
 			md5_add_string(string_to_process, len);
@@ -104,7 +112,6 @@ int main(int argc, char *argv[])
 		}
 		md5_get_hash(hash_out);
 
-		char hash_out_str[34];
 		sprintf(hash_out_str, "%08x%08x%08x%08x", hash_out[0], hash_out[1], hash_out[2], hash_out[3]);
 
 		for (i = 0; i < 4; i++) {
@@ -126,6 +133,36 @@ int main(int argc, char *argv[])
 		printf("%s\n", hash_out_str);
 		break;
 	case SHA1:
+		sha1_init();
+		if (string_input && string_to_process != NULL) {
+			sha1_add_string(string_to_process);
+		} else if (file_input) {
+			//FILE *fp = fopen(file_to_process, "r");
+			//sha1_add_file(fp);
+		}
+		sha1_get_hash(hash_out);
+
+		sprintf(hash_out_str, "%08x%08x%08x%08x%08x", hash_out[0], hash_out[1], hash_out[2], hash_out[3], hash_out[4]);
+
+		/*
+		for (i = 0; i < 5; i++) {
+			int j;
+			for (j = 0; j < 2; j++) {
+				char temp[2];
+
+				temp[0] = hash_out_str[(i * 8) + (j * 2)];
+                temp[1] = hash_out_str[(i * 8) + (j * 2) + 1];
+
+                hash_out_str[(i * 8) + (j * 2)] = hash_out_str[(i * 8) + (6 - (j * 2))];
+                hash_out_str[(i * 8) + (j * 2) + 1] = hash_out_str[(i * 8) + (7 - (j * 2))];
+
+                hash_out_str[(i * 8) + (6 - (j * 2))] = temp[0];
+                hash_out_str[(i * 8) + (7 - (j * 2))] = temp[1];
+			}
+		}
+		 */
+
+		printf("%s\n", hash_out_str);
 		break;
 	}
 
