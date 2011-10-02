@@ -5,6 +5,8 @@
  *      Author: FergoFrog
  */
 
+#import <stdio.h>
+
 #import "sha1.h"
 
 #define SHA1_FUNC_F(X, Y, Z) (((X) & (Y)) | (~(X) & (Z)))
@@ -122,14 +124,16 @@ void sha1_add_chunk()
 	unsigned int a = hash[0], b = hash[1], c = hash[2], d = hash[3], e = hash[4];
 
 	/* RFC 3174 way - works */
-	//*
+	/*
 	unsigned int words[80];
 	for (i = 0; i < 16; i++) {
 		words[i] = sha1_b_to_w(cur_chunk[i]);
 	}
 	for (i = 16; i < 80; i++) {
 		words[i] = words[i - 3] ^ words[i - 8] ^ words[i - 14] ^ words[i - 16];
+		printf("%08X\t", words[i]);
 		words[i] = sha1_l_rot(words[i], 1);
+		printf("%08X\n", words[i]);
 	}
 
 	for (i = 0; i < 80; i++) {
@@ -157,13 +161,15 @@ void sha1_add_chunk()
 	//*/
 
 	/* My way - doesn't work */
-	/*
+	//*
 	for (i = 16; i < 80; i++) {
 		cur_chunk[i][0] = cur_chunk[i - 3][0] ^ cur_chunk[i - 8][0] ^ cur_chunk[i - 14][0] ^ cur_chunk[i - 16][0];
 		cur_chunk[i][1] = cur_chunk[i - 3][1] ^ cur_chunk[i - 8][1] ^ cur_chunk[i - 14][1] ^ cur_chunk[i - 16][1];
 		cur_chunk[i][2] = cur_chunk[i - 3][2] ^ cur_chunk[i - 8][2] ^ cur_chunk[i - 14][2] ^ cur_chunk[i - 16][2];
 		cur_chunk[i][3] = cur_chunk[i - 3][3] ^ cur_chunk[i - 8][3] ^ cur_chunk[i - 14][3] ^ cur_chunk[i - 16][3];
+		printf("%02X%02X%02X%02X\t", cur_chunk[i][0], cur_chunk[i][1], cur_chunk[i][2], cur_chunk[i][3]);
 		sha1_w_l_rot(cur_chunk[i], 1);
+		printf("%02X%02X%02X%02X\n", cur_chunk[i][0], cur_chunk[i][1], cur_chunk[i][2], cur_chunk[i][3]);
 	}
 
 	for (i = 0; i < 80; i++) {
@@ -204,10 +210,16 @@ unsigned int sha1_l_rot(unsigned int value, unsigned int shift)
 
 void sha1_w_l_rot(unsigned char w[], unsigned int shift)
 {
-	unsigned char temp = (w[0] << shift) | (w[3] >> (8 - shift));
-	w[3] = (w[3] << shift) | (w[0] >> (8 - shift));
-	w[2] = (w[2] << shift) | (w[1] >> (8 - shift));
+//	unsigned char temp = (w[0] << shift) | (w[3] >> (8 - shift));
+//	w[3] = (w[3] << shift) | (w[2] >> (8 - shift));
+//	w[2] = (w[2] << shift) | (w[1] >> (8 - shift));
+//	w[1] = (w[1] << shift) | (w[0] >> (8 - shift));
+//	w[0] = temp;
+	unsigned char temp;
+	temp = (w[0] << shift) | (w[1] >> (8 - shift));
 	w[1] = (w[1] << shift) | (w[2] >> (8 - shift));
+	w[2] = (w[2] << shift) | (w[3] >> (8 - shift));
+	w[3] = (w[3] << shift) | (w[0] >> (8 - shift));
 	w[0] = temp;
 }
 
