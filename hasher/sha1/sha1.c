@@ -7,6 +7,7 @@
 
 #import <stdio.h>
 
+#import "../global.h"
 #import "sha1.h"
 
 #define SHA1_FUNC_F(X, Y, Z) (((X) & (Y)) | (~(X) & (Z)))
@@ -20,10 +21,6 @@ extern char in_hash;
 extern unsigned char cur_chunk[80][4], cur_chunk_pos;
 
 void sha1_add_chunk();
-unsigned int sha1_l_rot(unsigned int, unsigned int);
-void sha1_w_l_rot(unsigned char [], unsigned int);
-unsigned int sha1_b_to_w(unsigned char []);
-void sha1_ll_to_b(unsigned long long, unsigned char []);
 
 char sha1_init()
 {
@@ -92,7 +89,7 @@ char sha1_get_hash(unsigned int hash_out[])
 
 		/* Append length */
 		unsigned char length_b[8];
-		sha1_ll_to_b(hash_length, length_b);
+		be_ll_to_b(hash_length, length_b);
 		while (cur_chunk_pos < 64) {
 			cur_chunk[cur_chunk_pos / 4][cur_chunk_pos % 4] = length_b[cur_chunk_pos - 56];
 			cur_chunk_pos++;
@@ -123,53 +120,12 @@ void sha1_add_chunk()
 
 	unsigned int a = hash[0], b = hash[1], c = hash[2], d = hash[3], e = hash[4];
 
-	/* RFC 3174 way - works */
-	/*
-	unsigned int words[80];
-	for (i = 0; i < 16; i++) {
-		words[i] = sha1_b_to_w(cur_chunk[i]);
-	}
-	for (i = 16; i < 80; i++) {
-		words[i] = words[i - 3] ^ words[i - 8] ^ words[i - 14] ^ words[i - 16];
-		printf("%08X\t", words[i]);
-		words[i] = sha1_l_rot(words[i], 1);
-		printf("%08X\n", words[i]);
-	}
-
-	for (i = 0; i < 80; i++) {
-		if (i >= 0 && i < 20) {
-			func_out = SHA1_FUNC_F(b, c, d);
-			constant = 0x5A827999;
-		} else if (i >= 20 && i < 40) {
-			func_out = SHA1_FUNC_G(b, c, d);
-			constant = 0x6ED9EBA1;
-		} else if (i >= 40 && i < 60) {
-			func_out = SHA1_FUNC_H(b, c, d);
-			constant = 0x8F1BBCDC;
-		} else {
-			func_out = SHA1_FUNC_I(b, c, d);
-			constant = 0xCA62C1D6;
-		}
-
-		unsigned int temp = sha1_l_rot(a, 5) + func_out + e + constant + words[i];
-		e = d;
-		d = c;
-		c = sha1_l_rot(b, 30);
-		b = a;
-		a = temp;
-	}
-	//*/
-
-	/* My way - doesn't work */
-	//*
 	for (i = 16; i < 80; i++) {
 		cur_chunk[i][0] = cur_chunk[i - 3][0] ^ cur_chunk[i - 8][0] ^ cur_chunk[i - 14][0] ^ cur_chunk[i - 16][0];
 		cur_chunk[i][1] = cur_chunk[i - 3][1] ^ cur_chunk[i - 8][1] ^ cur_chunk[i - 14][1] ^ cur_chunk[i - 16][1];
 		cur_chunk[i][2] = cur_chunk[i - 3][2] ^ cur_chunk[i - 8][2] ^ cur_chunk[i - 14][2] ^ cur_chunk[i - 16][2];
 		cur_chunk[i][3] = cur_chunk[i - 3][3] ^ cur_chunk[i - 8][3] ^ cur_chunk[i - 14][3] ^ cur_chunk[i - 16][3];
-		printf("%02X%02X%02X%02X\t", cur_chunk[i][0], cur_chunk[i][1], cur_chunk[i][2], cur_chunk[i][3]);
-		sha1_w_l_rot(cur_chunk[i], 1);
-		printf("%02X%02X%02X%02X\n", cur_chunk[i][0], cur_chunk[i][1], cur_chunk[i][2], cur_chunk[i][3]);
+		be_w_l_rot(cur_chunk[i], 1);
 	}
 
 	for (i = 0; i < 80; i++) {
@@ -187,72 +143,17 @@ void sha1_add_chunk()
 			constant = 0xCA62C1D6;
 		}
 
-		unsigned int temp = sha1_l_rot(a, 5) + func_out + e + constant + sha1_b_to_w(cur_chunk[i]);
+		unsigned int temp = be_l_rot(a, 5) + func_out + e + constant + be_b_to_w(cur_chunk[i]);
 		e = d;
 		d = c;
-		c = sha1_l_rot(b, 30);
+		c = be_l_rot(b, 30);
 		b = a;
 		a = temp;
 	}
-	//*/
 
 	hash[0] += a;
 	hash[1] += b;
 	hash[2] += c;
 	hash[3] += d;
 	hash[4] += e;
-}
-
-unsigned int sha1_l_rot(unsigned int value, unsigned int shift)
-{
-	return (value << shift) | (value >> (32 - shift));
-}
-
-void sha1_w_l_rot(unsigned char w[], unsigned int shift)
-{
-//	unsigned char temp = (w[0] << shift) | (w[3] >> (8 - shift));
-//	w[3] = (w[3] << shift) | (w[2] >> (8 - shift));
-//	w[2] = (w[2] << shift) | (w[1] >> (8 - shift));
-//	w[1] = (w[1] << shift) | (w[0] >> (8 - shift));
-//	w[0] = temp;
-	unsigned char temp;
-	temp = (w[0] << shift) | (w[1] >> (8 - shift));
-	w[1] = (w[1] << shift) | (w[2] >> (8 - shift));
-	w[2] = (w[2] << shift) | (w[3] >> (8 - shift));
-	w[3] = (w[3] << shift) | (w[0] >> (8 - shift));
-	w[0] = temp;
-}
-
-unsigned int sha1_b_to_w(unsigned char b[])
-{
-	/* Little Endian */
-	/*
-	return b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24);
-	 */
-	/* Big Endian */
-	return b[3] | (b[2] << 8) | (b[1] << 16) | (b[0] << 24);
-}
-
-void sha1_ll_to_b(unsigned long long ll, unsigned char b[])
-{
-	/* Little Endian */
-	/*
-	b[0] = (ll & 0x00000000000000FF) >>  0;
-	b[1] = (ll & 0x000000000000FF00) >>  8;
-	b[2] = (ll & 0x0000000000FF0000) >> 16;
-	b[3] = (ll & 0x00000000FF000000) >> 24;
-	b[4] = (ll & 0x000000FF00000000) >> 32;
-	b[5] = (ll & 0x0000FF0000000000) >> 40;
-	b[6] = (ll & 0x00FF000000000000) >> 48;
-	b[7] = (ll & 0xFF00000000000000) >> 56;
-	 */
-	/* Big Endian */
-	b[7] = (ll & 0x00000000000000FF) >>  0;
-	b[6] = (ll & 0x000000000000FF00) >>  8;
-	b[5] = (ll & 0x0000000000FF0000) >> 16;
-	b[4] = (ll & 0x00000000FF000000) >> 24;
-	b[3] = (ll & 0x000000FF00000000) >> 32;
-	b[2] = (ll & 0x0000FF0000000000) >> 40;
-	b[1] = (ll & 0x00FF000000000000) >> 48;
-	b[0] = (ll & 0xFF00000000000000) >> 56;
 }

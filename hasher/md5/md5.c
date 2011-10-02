@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 
+#include "../global.h"
 #include "md5.h"
 
 #define MD5_FUNC_F(X, Y, Z) (((X) & (Y)) | (~(X) & (Z)))
@@ -45,9 +46,6 @@ extern char in_hash;
 extern unsigned char cur_chunk[80][4], cur_chunk_pos;
 
 void md5_add_chunk();
-unsigned int md5_l_rot(unsigned int, unsigned int);
-unsigned int md5_b_to_w(unsigned char []);
-void md5_ll_to_b(unsigned long long, unsigned char []);
 
 char md5_init()
 {
@@ -139,7 +137,7 @@ char md5_get_hash(unsigned int hash_out[])
 
 		/* Append length */
 		unsigned char length_b[8];
-		md5_ll_to_b(hash_length, length_b);
+		le_ll_to_b(hash_length, length_b);
 		while (cur_chunk_pos < 64) {
 			cur_chunk[cur_chunk_pos / 4][cur_chunk_pos % 4] = length_b[cur_chunk_pos - 56];
 			cur_chunk_pos++;
@@ -187,7 +185,7 @@ void md5_add_chunk()
 		unsigned int tmp = d;
 		d = c;
 		c = b;
-		b = b + md5_l_rot(a + func_out + operation_constants[i] + md5_b_to_w(cur_chunk[word_idx]), shift_amounts[i / 16][i % 4]);
+		b = b + le_l_rot(a + func_out + operation_constants[i] + le_b_to_w(cur_chunk[word_idx]), shift_amounts[i / 16][i % 4]);
 		a = tmp;
 	}
 
@@ -197,41 +195,3 @@ void md5_add_chunk()
 	hash[3] += d;
 }
 
-unsigned int md5_l_rot(unsigned int value, unsigned int shift)
-{
-	return (value << shift) | (value >> (32 - shift));
-}
-
-unsigned int md5_b_to_w(unsigned char b[])
-{
-	/* Little Endian */
-	return b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24);
-	/* Big Endian */
-	/*
-	return b[3] | (b[2] << 8) | (b[1] << 16) | (b[0] << 24);
-	 */
-}
-
-void md5_ll_to_b(unsigned long long ll, unsigned char b[])
-{
-	/* Little Endian */
-	b[0] = (ll & 0x00000000000000FF) >>  0;
-	b[1] = (ll & 0x000000000000FF00) >>  8;
-	b[2] = (ll & 0x0000000000FF0000) >> 16;
-	b[3] = (ll & 0x00000000FF000000) >> 24;
-	b[4] = (ll & 0x000000FF00000000) >> 32;
-	b[5] = (ll & 0x0000FF0000000000) >> 40;
-	b[6] = (ll & 0x00FF000000000000) >> 48;
-	b[7] = (ll & 0xFF00000000000000) >> 56;
-	/* Big Endian */
-	/*
-	b[7] = (ll & 0x00000000000000FF) >>  0;
-	b[6] = (ll & 0x000000000000FF00) >>  8;
-	b[5] = (ll & 0x0000000000FF0000) >> 16;
-	b[4] = (ll & 0x00000000FF000000) >> 24;
-	b[3] = (ll & 0x000000FF00000000) >> 32;
-	b[2] = (ll & 0x0000FF0000000000) >> 40;
-	b[1] = (ll & 0x00FF000000000000) >> 48;
-	b[0] = (ll & 0xFF00000000000000) >> 56;
-	 */
-}
