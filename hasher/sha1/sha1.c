@@ -1,21 +1,24 @@
-/*
- *  A collection of common hashing algorithms for hashing strings and files
- *  sha1.c - an implementation of the SHA1 algorithm, described in
- *   FIPS 180-1 (and after)
- *  Copyright (C) 2011 FergoFrog
+/**
+ * @file sha1.c
+ * An implementation of the SHA1 algorithm, described in FIPS 180-1 (and after)
+ * @author	FergoFrog <fergofrog@fergofrog.com>
+ * @version 0.3
  *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
+ * @section LICENSE
+ * Copyright (C) 2011 FergoFrog
  *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdio.h>
 
