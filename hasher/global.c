@@ -22,21 +22,50 @@
  */
 #import "global.h"
 
+/**
+ * Left rotate for unsigned integers
+ *
+ * @param value Value to be rotated
+ * @param shift Amount to be rotated by
+ * @return The rotated value
+ */
 unsigned int i_l_rot(unsigned int value, unsigned int shift)
 {
 	return (value << shift) | (value >> (32 - shift));
 }
 
+/**
+ * Right rotate for unsigned integers
+ *
+ * @param value Value to be rotated
+ * @param shift Amount to be rotated by
+ * @return The rotated value
+ */
 unsigned int i_r_rot(unsigned int value, unsigned int shift)
 {
 	return (value >> shift) | (value << (32 - shift));
 }
 
+/**
+ * Right rotate for unsigned double longs
+ *
+ * @param value Value to be rotated
+ * @param shift Amount to be rotated by
+ * @return The rotated value
+ */
 unsigned long long ll_r_rot(unsigned long long value, unsigned long long shift)
 {
 	return (value >> shift) | (value << (64ULL - shift));
 }
 
+/**
+ * Left rotate for an array of 4 bytes (an integer)
+
+ *
+ * @param w The integer, an array of 4 big endian bytes
+ *  - the result is also stored here
+ * @param shift Amount to be rotated by
+ */
 void be_w_l_rot(unsigned char w[], unsigned int shift)
 {
 	unsigned char temp;
@@ -47,16 +76,23 @@ void be_w_l_rot(unsigned char w[], unsigned int shift)
 	w[0] = temp;
 }
 
+/**
+ * Convert a big endian array of 4 bytes to 32 bit word
+ *
+ * @param b Big endian array of 4 bytes
+ * @return Unsigned 32 bit word of the bytes
+ */
 unsigned int be_i_b_to_w(unsigned char b[])
 {
-	/* Little Endian */
-	/*
-	return b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24);
-	 */
-	/* Big Endian */
 	return b[3] | (b[2] << 8) | (b[1] << 16) | (b[0] << 24);
 }
 
+/**
+ * Convert a big endian array of 8 bytes to 64 bit word
+ *
+ * @param b Big endian array of 8 bytes
+ * @return Unsigned 64 bit word of the bytes
+ */
 unsigned long long be_ll_b_to_w(unsigned char b[])
 {
 	unsigned long long temp = 0ULL;
@@ -71,20 +107,14 @@ unsigned long long be_ll_b_to_w(unsigned char b[])
 	return temp;
 }
 
+/**
+ * Convert a 64 bit word to a big endian array of 8 bytes
+ *
+ * @param ll Unsigned 64 bit word to be converted
+ * @param b Array of 8 bytes to store the big endian representation of the word
+ */
 void be_ll_to_b(unsigned long long ll, unsigned char b[])
 {
-	/* Little Endian */
-	/*
-	b[0] = (ll & 0x00000000000000FF) >>  0;
-	b[1] = (ll & 0x000000000000FF00) >>  8;
-	b[2] = (ll & 0x0000000000FF0000) >> 16;
-	b[3] = (ll & 0x00000000FF000000) >> 24;
-	b[4] = (ll & 0x000000FF00000000) >> 32;
-	b[5] = (ll & 0x0000FF0000000000) >> 40;
-	b[6] = (ll & 0x00FF000000000000) >> 48;
-	b[7] = (ll & 0xFF00000000000000) >> 56;
-	 */
-	/* Big Endian */
 	b[7] = (ll & 0x00000000000000FF) >>  0;
 	b[6] = (ll & 0x000000000000FF00) >>  8;
 	b[5] = (ll & 0x0000000000FF0000) >> 16;
@@ -95,7 +125,15 @@ void be_ll_to_b(unsigned long long ll, unsigned char b[])
 	b[0] = (ll & 0xFF00000000000000) >> 56;
 }
 
-void be_llll_to_b(unsigned long long ms_ll, unsigned long long ls_ll, unsigned char b[])
+/**
+ * Convert a 128 bit word to a big endian array of 16 bytes
+ *
+ * @param ms_ll Most significant unsigned 64 bit word to be converted
+ * @param ls_ll Least significant unsigned 64 bit word to be converted
+ * @param b Array of 16 bytes to store the big endian representation
+ */
+void be_llll_to_b(unsigned long long ms_ll, unsigned long long ls_ll,
+		unsigned char b[])
 {
 	b[15] = (ls_ll & 0x00000000000000FF) >>  0;
 	b[14] = (ls_ll & 0x000000000000FF00) >>  8;
@@ -115,19 +153,25 @@ void be_llll_to_b(unsigned long long ms_ll, unsigned long long ls_ll, unsigned c
 	b[0] = (ms_ll & 0xFF00000000000000) >> 56;
 }
 
+/**
+ * Convert a little endian array of 4 bytes to 32 bit word
+ *
+ * @param b Little endian array of 4 bytes
+ * @return Unsigned 32 bit word of the bytes
+ */
 unsigned int le_b_to_w(unsigned char b[])
 {
-	/* Little Endian */
 	return b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24);
-	/* Big Endian */
-	/*
-	return b[3] | (b[2] << 8) | (b[1] << 16) | (b[0] << 24);
-	 */
 }
 
+/**
+ * Convert a 64 bit word to a little endian array of 8 bytes
+ *
+ * @param ll Unsigned 64 bit word to be converted
+ * @param b Array of 8 bytes to store the little endian representation
+ */
 void le_ll_to_b(unsigned long long ll, unsigned char b[])
 {
-	/* Little Endian */
 	b[0] = (ll & 0x00000000000000FF) >>  0;
 	b[1] = (ll & 0x000000000000FF00) >>  8;
 	b[2] = (ll & 0x0000000000FF0000) >> 16;
@@ -136,15 +180,4 @@ void le_ll_to_b(unsigned long long ll, unsigned char b[])
 	b[5] = (ll & 0x0000FF0000000000) >> 40;
 	b[6] = (ll & 0x00FF000000000000) >> 48;
 	b[7] = (ll & 0xFF00000000000000) >> 56;
-	/* Big Endian */
-	/*
-	b[7] = (ll & 0x00000000000000FF) >>  0;
-	b[6] = (ll & 0x000000000000FF00) >>  8;
-	b[5] = (ll & 0x0000000000FF0000) >> 16;
-	b[4] = (ll & 0x00000000FF000000) >> 24;
-	b[3] = (ll & 0x000000FF00000000) >> 32;
-	b[2] = (ll & 0x0000FF0000000000) >> 40;
-	b[1] = (ll & 0x00FF000000000000) >> 48;
-	b[0] = (ll & 0xFF00000000000000) >> 56;
-	 */
 }

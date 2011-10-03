@@ -65,7 +65,8 @@ void print_version()
  */
 void print_help(char *program)
 {
-	printf("usage: %s [-h] [--md5] [--sha1] [-s string] [-f file]\n\n", program);
+	printf("usage: %s [-h] [--md5] [--sha1] [-s string] [-f file]\n\n",
+			program);
 	printf("\t    --md5\tuse md5\n");
 	printf("\t    --sha1\tuse sha1\n");
 	printf("\t-s, --string\tstring input\n");

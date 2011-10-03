@@ -23,6 +23,7 @@
 #ifndef SHA2_H_
 #define SHA2_H_
 
+/** Enumeration of SHA2 types */
 enum sha2_t {
 	SHA256,
 	SHA224,
