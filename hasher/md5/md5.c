@@ -1,4 +1,22 @@
 /*
+ *  A collection of common hashing algorithms for hashing strings and files
+ *  md5.c - an implementation of the MD5 algorithm, described in RFC 1321
+ *  Copyright (C) 2011 FergoFrog
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/*
  * md5.c
  *
  *  Created on: Oct 1, 2011
@@ -40,20 +58,20 @@ const unsigned int operation_constants[64] = {0xd76aa478, 0xe8c7b756, 0x242070db
 		                                   0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
 		                                   0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391};
 
-extern unsigned int hash[5];
+extern unsigned int i_hash[8];
 extern unsigned long long hash_length;
 extern char in_hash;
-extern unsigned char cur_chunk[80][4], cur_chunk_pos;
+extern unsigned char cur_chunk[80][8], cur_chunk_pos;
 
 void md5_add_chunk();
 
 char md5_init()
 {
 	if (!in_hash) {
-		hash[0] = 0x67452301;
-		hash[1] = 0xEFCDAB89;
-		hash[2] = 0x98BADCFE;
-		hash[3] = 0x10325476;
+		i_hash[0] = 0x67452301;
+		i_hash[1] = 0xEFCDAB89;
+		i_hash[2] = 0x98BADCFE;
+		i_hash[3] = 0x10325476;
 
 		hash_length = 0;
 		cur_chunk_pos = 0;
@@ -146,10 +164,10 @@ char md5_get_hash(unsigned int hash_out[])
 		md5_add_chunk();
 
 		/* Copy the hash over */
-		hash_out[0] = hash[0];
-		hash_out[1] = hash[1];
-		hash_out[2] = hash[2];
-		hash_out[3] = hash[3];
+		hash_out[0] = i_hash[0];
+		hash_out[1] = i_hash[1];
+		hash_out[2] = i_hash[2];
+		hash_out[3] = i_hash[3];
 
 		in_hash = 0;
 
@@ -164,7 +182,7 @@ void md5_add_chunk()
 	unsigned int func_out, word_idx;
 	int i;
 
-	unsigned int a = hash[0], b = hash[1], c = hash[2], d = hash[3];
+	unsigned int a = i_hash[0], b = i_hash[1], c = i_hash[2], d = i_hash[3];
 
 	for (i = 0; i < 64; i++) {
 		if (i >= 0 && i < 16) {
@@ -184,13 +202,13 @@ void md5_add_chunk()
 		unsigned int tmp = d;
 		d = c;
 		c = b;
-		b = b + le_l_rot(a + func_out + operation_constants[i] + le_b_to_w(cur_chunk[word_idx]), shift_amounts[i / 16][i % 4]);
+		b = b + i_l_rot(a + func_out + operation_constants[i] + le_b_to_w(cur_chunk[word_idx]), shift_amounts[i / 16][i % 4]);
 		a = tmp;
 	}
 
-	hash[0] += a;
-	hash[1] += b;
-	hash[2] += c;
-	hash[3] += d;
+	i_hash[0] += a;
+	i_hash[1] += b;
+	i_hash[2] += c;
+	i_hash[3] += d;
 }
 

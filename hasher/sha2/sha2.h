@@ -1,6 +1,6 @@
 /*
  *  A collection of common hashing algorithms for hashing strings and files
- *  md5.h - header for md5.c
+ *  sha2.h - header for sha2.c
  *  Copyright (C) 2011 FergoFrog
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -17,12 +17,19 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef MD5_H_
-#define MD5_H_
+#ifndef SHA2_H_
+#define SHA2_H_
 
-char md5_init();
-char md5_add_string(char *);
-char md5_add_file(FILE *);
-char md5_get_hash(unsigned int []);
+enum sha2_t {
+	SHA256,
+	SHA224,
+	SHA512,
+	SHA384
+};
 
-#endif /* MD5_H_ */
+char sha2_init();
+char sha2_add_string(char *);
+char sha2_add_file(FILE *);
+char sha2_get_hash(unsigned long long[]);
+
+#endif /* SHA2_H_ */

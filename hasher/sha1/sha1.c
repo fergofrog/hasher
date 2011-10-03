@@ -1,35 +1,46 @@
 /*
- * sha1.c
+ *  A collection of common hashing algorithms for hashing strings and files
+ *  sha1.c - an implementation of the SHA1 algorithm, described in
+ *   FIPS 180-1 (and after)
+ *  Copyright (C) 2011 FergoFrog
  *
- *  Created on: Oct 2, 2011
- *      Author: FergoFrog
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <stdio.h>
 
-#import <stdio.h>
+#include "../global.h"
+#include "sha1.h"
 
-#import "../global.h"
-#import "sha1.h"
+#define SHA1_CH(X, Y, Z) (((X) & (Y)) ^ (~(X) & (Z)))
+#define SHA1_PARITY(X, Y, Z) ((X) ^ (Y) ^ (Z))
+#define SHA1_MAJ(X, Y, Z) (((X) & (Y)) ^ ((X) & (Z)) ^ ((Y) & (Z)))
 
-#define SHA1_FUNC_F(X, Y, Z) (((X) & (Y)) | (~(X) & (Z)))
-#define SHA1_FUNC_G(X, Y, Z) ((X) ^ (Y) ^ (Z))
-#define SHA1_FUNC_H(X, Y, Z) (((X) & (Y)) | ((X) & (Z)) | ((Y) & (Z)))
-#define SHA1_FUNC_I(X, Y, Z) ((X) ^ (Y) ^ (Z))
-
-extern unsigned int hash[5];
+extern unsigned int i_hash[8];
 extern unsigned long long hash_length;
 extern char in_hash;
-extern unsigned char cur_chunk[80][4], cur_chunk_pos;
+extern unsigned char cur_chunk[80][8], cur_chunk_pos;
 
 void sha1_add_chunk();
 
 char sha1_init()
 {
 	if (!in_hash) {
-		hash[0] = 0x67452301;
-		hash[1] = 0xEFCDAB89;
-		hash[2] = 0x98BADCFE;
-		hash[3] = 0x10325476;
-		hash[4] = 0xC3D2E1F0;
+		i_hash[0] = 0x67452301;
+		i_hash[1] = 0xEFCDAB89;
+		i_hash[2] = 0x98BADCFE;
+		i_hash[3] = 0x10325476;
+		i_hash[4] = 0xC3D2E1F0;
 
 		hash_length = 0;
 		cur_chunk_pos = 0;
@@ -122,11 +133,11 @@ char sha1_get_hash(unsigned int hash_out[])
 		sha1_add_chunk();
 
 		/* Copy the hash over */
-		hash_out[0] = hash[0];
-		hash_out[1] = hash[1];
-		hash_out[2] = hash[2];
-		hash_out[3] = hash[3];
-		hash_out[4] = hash[4];
+		hash_out[0] = i_hash[0];
+		hash_out[1] = i_hash[1];
+		hash_out[2] = i_hash[2];
+		hash_out[3] = i_hash[3];
+		hash_out[4] = i_hash[4];
 
 		in_hash = 0;
 
@@ -141,7 +152,7 @@ void sha1_add_chunk()
 	unsigned int func_out, constant;
 	int i;
 
-	unsigned int a = hash[0], b = hash[1], c = hash[2], d = hash[3], e = hash[4];
+	unsigned int a = i_hash[0], b = i_hash[1], c = i_hash[2], d = i_hash[3], e = i_hash[4];
 
 	for (i = 16; i < 80; i++) {
 		cur_chunk[i][0] = cur_chunk[i - 3][0] ^ cur_chunk[i - 8][0] ^ cur_chunk[i - 14][0] ^ cur_chunk[i - 16][0];
@@ -153,30 +164,30 @@ void sha1_add_chunk()
 
 	for (i = 0; i < 80; i++) {
 		if (i >= 0 && i < 20) {
-			func_out = SHA1_FUNC_F(b, c, d);
+			func_out = SHA1_CH(b, c, d);
 			constant = 0x5A827999;
 		} else if (i >= 20 && i < 40) {
-			func_out = SHA1_FUNC_G(b, c, d);
+			func_out = SHA1_PARITY(b, c, d);
 			constant = 0x6ED9EBA1;
 		} else if (i >= 40 && i < 60) {
-			func_out = SHA1_FUNC_H(b, c, d);
+			func_out = SHA1_MAJ(b, c, d);
 			constant = 0x8F1BBCDC;
 		} else {
-			func_out = SHA1_FUNC_I(b, c, d);
+			func_out = SHA1_PARITY(b, c, d);
 			constant = 0xCA62C1D6;
 		}
 
-		unsigned int temp = be_l_rot(a, 5) + func_out + e + constant + be_b_to_w(cur_chunk[i]);
+		unsigned int temp = i_l_rot(a, 5) + func_out + e + constant + be_i_b_to_w(cur_chunk[i]);
 		e = d;
 		d = c;
-		c = be_l_rot(b, 30);
+		c = i_l_rot(b, 30);
 		b = a;
 		a = temp;
 	}
 
-	hash[0] += a;
-	hash[1] += b;
-	hash[2] += c;
-	hash[3] += d;
-	hash[4] += e;
+	i_hash[0] += a;
+	i_hash[1] += b;
+	i_hash[2] += c;
+	i_hash[3] += d;
+	i_hash[4] += e;
 }
