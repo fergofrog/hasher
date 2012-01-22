@@ -20,7 +20,28 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#import "global.h"
+#include <sys/stat.h>
+
+#include "global.h"
+
+/** Hash algorithm being used */
+enum hash_t hash_algorithm;
+/** Array of 32 bit unsigned ints for MD5, SHA1, SHA256, SHA224 */
+unsigned int i_hash[8];
+/** Array of 64 bit unsigned ints for SHA512, SHA384 */
+unsigned long long ll_hash[8];
+/** Current message length */
+unsigned long long hash_length;
+/** Current message length for SHA512 and SHA384 (128 bit length) */
+unsigned long long hash_length2;
+/** Stores whether the hash globals are being used */
+char in_hash;
+/** 80 64 bit words containing the current chunk */
+unsigned char cur_chunk[80][8];
+/** Position within the current chunk */
+unsigned int cur_chunk_pos;
+/** Verbose level */
+unsigned int verbose_level = 0;
 
 /**
  * Left rotate for unsigned integers
@@ -60,7 +81,6 @@ unsigned long long ll_r_rot(unsigned long long value, unsigned long long shift)
 
 /**
  * Left rotate for an array of 4 bytes (an integer)
-
  *
  * @param w The integer, an array of 4 big endian bytes
  *  - the result is also stored here

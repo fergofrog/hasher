@@ -1,6 +1,6 @@
 /**
- * @file md5.h
- * Header for md5.c
+ * @file global.h
+ * Header for global.c
  * @author	FergoFrog <fergofrog@fergofrog.com>
  * @version 0.3
  *
@@ -20,13 +20,25 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef MD5_H_
-#define MD5_H_
+#ifndef FILE_H_
+#define FILE_H_
 
-char md5_init();
-char md5_add_string(char *);
-char md5_add_file(FILE *);
-char md5_get_hash(unsigned int []);
-char md5_get_hash_str(char []);
+/** File list struct */
+struct file_list_t {
+    char dyn_alloc;
+    char *file;
+    ino_t ino;
+    struct file_list_t *next;
+};
 
-#endif /* MD5_H_ */
+ino_t is_file(char *);
+ino_t is_dir(char *);
+ino_t is_filedir(char *);
+
+unsigned int expand_files(unsigned int, struct file_list_t **);
+
+char file_listed(ino_t, unsigned int, struct file_list_t *);
+void free_file_list(unsigned int, struct file_list_t *);
+
+
+#endif /* FILE_H_ */

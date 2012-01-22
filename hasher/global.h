@@ -23,20 +23,26 @@
 #ifndef GLOBAL_H_
 #define GLOBAL_H_
 
-/** Array of 32 bit unsigned ints for MD5, SHA1, SHA256, SHA224 */
-unsigned int i_hash[8];
-/** Array of 64 bit unsigned ints for SHA512, SHA384 */
-unsigned long long ll_hash[8];
-/** Current message length */
-unsigned long long hash_length;
-/** Current message length for SHA512 and SHA384 (128 bit length) */
-unsigned long long hash_length2;
-/** Stores whether the hash globals are being used */
-char in_hash;
-/** 80 64 bit words containing the current chunk */
-unsigned char cur_chunk[80][8];
-/** Position within the current chunk */
-unsigned int cur_chunk_pos;
+/** Hash types known */
+enum hash_t {
+    H_MD5    = 0,
+    H_SHA1   = 1,
+    H_SHA256 = 2,
+    H_SHA224 = 3,
+    H_SHA512 = 4,
+    H_SHA384 = 5
+};
+static char *hash_names[6] = {"md5", "sha1", "sha256", "sha224", "sha512", "sha384"};
+
+extern enum hash_t hash_algorithm;
+extern unsigned int i_hash[8];
+extern unsigned long long ll_hash[8];
+extern unsigned long long hash_length;
+extern unsigned long long hash_length2;
+extern char in_hash;
+extern unsigned char cur_chunk[80][8];
+extern unsigned int cur_chunk_pos;
+extern unsigned int verbose_level;
 
 unsigned int i_l_rot(unsigned int, unsigned int);
 unsigned int i_r_rot(unsigned int, unsigned int);

@@ -60,12 +60,6 @@ const unsigned int operation_constants[64] =
 	 0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
 	 0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391};
 
-extern unsigned int i_hash[8];
-extern unsigned long long hash_length;
-extern char in_hash;
-extern unsigned char cur_chunk[80][8];
-extern unsigned int cur_chunk_pos;
-
 void md5_add_chunk();
 
 /**
@@ -89,6 +83,7 @@ char md5_init()
 
 		/* Now in hash */
 		in_hash = 1;
+        hash_algorithm = H_MD5;
 
 		return 1;
 	} else {
@@ -104,9 +99,8 @@ char md5_init()
  */
 char md5_add_string(char *str)
 {
-	/* TODO: Ensure the hash type is MD5 */
 	/* Ensure we're currently hashing */
-	if (in_hash) {
+	if (in_hash && hash_algorithm == H_MD5) {
 		int i;
 		/*
 		 * Loop through the string
@@ -148,7 +142,7 @@ char md5_add_string(char *str)
 char md5_add_file(FILE *fp)
 {
 	/* Ensure we're currently hashing */
-	if (in_hash) {
+	if (in_hash && hash_algorithm == H_MD5) {
 		/* Get the first character */
 		int c = fgetc(fp);
 		/* Loop until end-of-file is reached */
@@ -190,7 +184,7 @@ char md5_add_file(FILE *fp)
  */
 char md5_get_hash(unsigned int hash_out[])
 {
-	if (in_hash) {
+	if (in_hash && hash_algorithm == H_MD5) {
 		/* Begin completing the hash by appending 0b10000000 */
 		cur_chunk[cur_chunk_pos / 4][cur_chunk_pos % 4] = 0x80;
 		cur_chunk_pos++;
@@ -245,6 +239,51 @@ char md5_get_hash(unsigned int hash_out[])
 	} else {
 		return 0;
 	}
+}
+
+/**
+ * Complete hashing and get a copy of the hash (as a string)
+ *
+ * @param hash_out A string of 32 chars to copy the hash into
+ * @return 1 if the hash was copied, else 0
+ */
+char md5_get_hash_str(char hash_out[])
+{
+    char res, temp[2];
+    unsigned int i_hash[4], i, j;
+
+    /* Get the hash as a series of unsigned little-endian ints */
+    res = md5_get_hash(i_hash);
+
+    if (!res) return 0;
+
+    /* Get the string representation of the hash */
+    sprintf(hash_out, "%08x%08x%08x%08x",
+            i_hash[0], i_hash[1],
+            i_hash[2], i_hash[3]);
+
+    /* Swap the characters around */
+    /* Outer loop: 4 groups of 8 */
+    for (i = 0; i < 4; i++) {
+        /* Inner loop: 2 pairs of 2 characters */
+        for (j = 0; j < 2; j++) {
+            /* Save the left pair */
+            temp[0] = hash_out[(i * 8) + (j * 2)];
+            temp[1] = hash_out[(i * 8) + (j * 2) + 1];
+
+            /* Copy the right pair across */
+            hash_out[(i * 8) + (j * 2)] =
+                hash_out[(i * 8) + (6 - (j * 2))];
+            hash_out[(i * 8) + (j * 2) + 1] =
+                hash_out[(i * 8) + (7 - (j * 2))];
+
+            /* Copy the original left to the right */
+            hash_out[(i * 8) + (6 - (j * 2))] = temp[0];
+            hash_out[(i * 8) + (7 - (j * 2))] = temp[1];
+        }
+    }
+
+    return 1;
 }
 
 /**

@@ -5,7 +5,7 @@
  * Front-end for the libraries
  *
  * @author	FergoFrog <fergofrog@fergofrog.com>
- * @version 0.3
+ * @version 0.4
  *
  * @section LICENSE
  * Copyright (C) 2011 FergoFrog
@@ -24,38 +24,41 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 /* Includes */
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <getopt.h>
 
 #include "global.h"
+#include "file.h"
 #include "md5/md5.h"
 #include "sha1/sha1.h"
 #include "sha2/sha2.h"
 
 /** Version number */
-#define VERSION "0.3"
+#define VERSION "0.4 pre-alpha"
 
 /** Boolean True definition */
 #define TRUE 1
 /** Boolean False definition */
 #define FALSE 0
 
-/** Hash types known */
-enum hash_t {
-	H_MD5,
-	H_SHA1,
-	H_SHA256,
-	H_SHA224,
-	H_SHA512,
-	H_SHA384
+enum target_t {
+    T_FILE,
+    T_STRING
 };
 
-extern char in_hash;
+struct args_t {
+    enum hash_t hash;
+    enum target_t target_type;
+    unsigned int no_targets;
+    struct file_list_t *target;
+};
 
 /** Print version to stdout */
 void print_version()
 {
-	printf("hasher, version " VERSION "\n\n");
+	printf("hasher, version " VERSION "\n");
 }
 
 /**
@@ -63,15 +66,189 @@ void print_version()
  *
  * @param program Program executable name
  */
-void print_help(char *program)
+void print_help(char *program, FILE *fout)
 {
-	printf("usage: %s [-h] [--md5] [--sha1] [-s string] [-f file]\n\n",
+	fprintf(fout, "usage: %s [--algo] [-s string] [-hv] [file]\n\n",
 			program);
-	printf("\t    --md5\tuse md5\n");
-	printf("\t    --sha1\tuse sha1\n");
-	printf("\t-s, --string\tstring input\n");
-	printf("\t-f, --file\tfile input\n");
-	printf("\t-h, --help\tthis message\n");
+	fprintf(fout, "\t-s, --string\tstring input\n");
+	fprintf(fout, "\t-h, --help\tthis message\n");
+    fprintf(fout, "\t-v, --version\tversion info");
+    fprintf(fout, "\nKnown Algorithms:\n");
+    fprintf(fout, "\t    --md5\tMD5 (RFC 1321) - Default\n");
+    fprintf(fout, "\t    --sha1\tSHA1 (RFC 3174)\n");
+    fprintf(fout, "\t    --sha256\tSHA256 (RFC 3174)\n");
+    fprintf(fout, "\t    --sha224\tSHA224 (RFC 3174)\n");
+    fprintf(fout, "\t    --sha512\tSHA512 (RFC 3174)\n");
+    fprintf(fout, "\t    --sha384\tSHA384 (RFC 3174)\n");
+}
+
+/**
+ * Process the arguments given to the program (using getopt)
+ *
+ * @param argc Number of arguments
+ * @param argv The arguments (array of strings)
+ * @param args The args_t structure to store the resulting arguments
+ */
+void process_args(int argc, char *const *argv, struct args_t *args)
+{
+    /* Variable to store temporary copy of hash */
+    static int hash_type;
+    /* Recognised long options */
+    static struct option longopts[] = {
+        {"md5", no_argument, &hash_type, H_MD5},
+        {"sha1", no_argument, &hash_type, H_SHA1},
+        {"sha256", no_argument, &hash_type, H_SHA256},
+        {"sha224", no_argument, &hash_type, H_SHA224},
+        {"sha512", no_argument, &hash_type, H_SHA512},
+        {"sha384", no_argument, &hash_type, H_SHA384},
+        {"string", required_argument, NULL, 's'},
+        {"help", no_argument, NULL, 'h'},
+        {"version", no_argument, NULL, 'v'}
+    };
+    /* Recognised short options */
+    static char *shortopts = "s:hvV";
+
+    struct file_list_t *cur_file;
+    int indexptr;
+    int c;
+    ino_t cur_ino;
+
+    /* Assuming it's a file input, unless string given */
+    args->target_type = T_FILE;
+
+    while ((c = getopt_long(argc, argv, shortopts, longopts, &indexptr)) != -1){
+        switch (c) {
+        case 0:
+            /* Long options */
+            /* Those with short options will go to their short cases,
+             * otherwise the specified flag will be set
+             */
+            break;
+        case 's':
+            /* String target selected */
+            args->target_type = T_STRING;
+            args->target = malloc(sizeof(struct file_list_t));
+            args->target->file = optarg;
+            /* Helps with freeing in main */
+            args->no_targets = 1;
+            args->target->dyn_alloc = 0;
+            break;
+        case 'h':
+            /* Help requested */
+            print_help(argv[0], stdout);
+            exit(0);
+            break;
+        case 'v':
+            /* Program version */
+            print_version();
+            exit(0);
+            break;
+        case 'V':
+            /* Increment verbosity level */
+            verbose_level++;
+            break;
+        case '?':
+            /* Unknown option */
+            print_help(argv[0], stderr);
+            exit(1);
+            break;
+        default:
+            /* Something really buggered */
+            fprintf(stderr,
+                    "Error: getopt returned an unexpected value (0x%0x)!\n",
+                    c);
+            abort();
+        }
+    }
+
+    /* Copy hash type over */
+    args->hash = hash_type;
+
+    /* Check whether a string was given as an option argument */
+    if (args->target_type == T_FILE) {
+        /* Check whether any non-option arguments remain
+         *  loop through creating a list if so
+         */
+        if (optind < argc) {
+            args->no_targets = 0;
+
+            /* Check the argument is a file or directory (and get its ino) */
+            if (!(cur_ino = is_filedir(argv[optind]))) {
+                fprintf(stderr,
+                    "Error: \"%s\" is not a file or directory.\n\n",
+                    argv[optind]);
+                print_help(argv[0], stderr);
+                exit(1);
+            }
+
+            /* Create the file list head */
+            args->target = cur_file = malloc(sizeof(struct file_list_t));
+            cur_file->dyn_alloc = 0;
+            cur_file->file = argv[optind++];
+            cur_file->ino = cur_ino;
+            args->no_targets++;
+
+            /* Push the files onto the list */
+            while (optind < argc) {
+                if (!(cur_ino = is_filedir(argv[optind]))) {
+                    fprintf(stderr,
+                        "Error: \"%s\" is not a file or directory.\n\n",
+                        argv[optind]);
+                    print_help(argv[0], stderr);
+                    exit(1);
+                } 
+
+                if (file_listed(cur_ino, args->no_targets, args->target)) {
+                    fprintf(stderr, "Error: \"%s\" is listed twice.\n",
+                        argv[optind]);
+                    exit(1);
+                }
+
+                cur_file->next = malloc(sizeof(struct file_list_t));
+                cur_file = cur_file->next;
+
+                cur_file->dyn_alloc = 0;
+                cur_file->file = argv[optind++];
+                cur_file->ino = cur_ino;
+                args->no_targets++;
+           }
+        } else {
+            /* No string given and no additional arguments remain */
+            fprintf(stderr, "Error: No string or file given.\n\n");
+            print_help(argv[0], stderr);
+            exit(1);
+        }
+    }
+
+    /* Verbose processing */
+    if (verbose_level >= 1) {
+        printf("V: Verbose level: %i\n", verbose_level);
+
+        printf("V: Hashing algo: %s\n", hash_names[args->hash]);
+
+        printf("V: Hash target: %s\n", args->target_type == T_STRING ? "String" : "File");
+
+        if (args->target_type == T_STRING) {
+            printf("V: String: %s\n", args->target->file);
+        } else {
+            if (verbose_level >=2) {
+                int i;
+                printf("VV: Files (%i):\n", args->no_targets);
+                cur_file = args->target;
+                for (i = 0; i < args->no_targets; i++) {
+                    if (verbose_level >= 3) {
+                        printf("VVV:\t%lu\t%s\n", cur_file->ino, cur_file->file);
+                    } else {
+                        printf("VV:\t%s\n", cur_file->file);
+                    }
+                
+                    cur_file = cur_file->next;
+                }
+            } else {
+                printf("V: Files given: %i\n", args->no_targets);
+            }
+        }
+    }
 }
 
 /**
@@ -82,89 +259,103 @@ void print_help(char *program)
  */
 int main(int argc, char *argv[])
 {
-	/* Type of input */
-	char string_input = FALSE, file_input = FALSE;
-	/* Hash type */
-	enum hash_t hash;
-
-	/* Pointers to strings */
-	char *string_to_process;
-	char *file_to_process;
-
+	unsigned int i;
+    struct args_t args;
+    struct file_list_t *cur_file;
+    FILE *fp;
+    char *hash_out;
+    
 	/* Not in hash yet */
 	in_hash = 0;
 
-	int i = 1;
-	while (i < argc) {
-		switch (argv[i][1]) {
-		case '-':
-			/* Double dash given (--) */
-			if (strcmp(argv[i] + 2, "md5") == 0) {
-				/* --md5 */
-				hash = H_MD5;
-			} else if (strcmp(argv[i] + 2, "sha1") == 0) {
-				/* --sha1 */
-				hash = H_SHA1;
-			} else if (strcmp(argv[i] + 2, "sha256") == 0) {
-				/* --sha256 */
-				hash = H_SHA256;
-			} else if (strcmp(argv[i] + 2, "sha224") == 0) {
-				/* --sha224 */
-				hash = H_SHA224;
-			} else if (strcmp(argv[i] + 2, "sha512") == 0) {
-				/* --sha512 */
-				hash = H_SHA512;
-			} else if (strcmp(argv[i] + 2, "sha384") == 0) {
-				/* --sha384 */
-				hash = H_SHA384;
-			} else if (strcmp(argv[i] + 2, "string") == 0) {
-				/* --string */
-				string_input = TRUE;
-				string_to_process = argv[++i];
-			} else if (strcmp(argv[i] + 2, "file") == 0) {
-				/* --file */
-				file_input = TRUE;
-				file_to_process = argv[++i];
-			} else if (strcmp(argv[i] + 2, "help") == 0) {
-				/* --help */
-				string_input = file_input = FALSE;
-				print_help(argv[0]);
-				return 0;
-			} else {
-				/* --[something else] */
-				string_input = file_input = FALSE;
-				printf("Unknown command %s\n\n", argv[i]);
-				print_help(argv[0]);
-				return 1;
-			}
-			break;
-		case 's':
-			/* String Input (-s) */
-			string_input = TRUE;
-			string_to_process = argv[++i];
-			break;
-		case 'f':
-			/* File Input (-f) */
-			file_input = TRUE;
-			file_to_process = argv[++i];
-			break;
-		case 'h':
-			/* Help message (-h) */
-			string_input = file_input = 0;
-			print_help(argv[0]);
-			return 0;
-		default:
-			/* Something unknown */
-			string_input = file_input = 0;
-			printf("Unknown command %s\n\n", argv[i]);
-			print_help(argv[0]);
-			return 1;
-		}
+    /* Process the arguments */
+    process_args(argc, argv, &args);
+    
+    /* Expand the directories */
+    if (args.target_type == T_FILE)
+        args.no_targets = expand_files(args.no_targets, &(args.target));
 
-		/* Go to the next argument */
-		i++;
-	}
+    /* Verbose processing */
+    if (verbose_level >= 1 && args.target_type == T_FILE) {
+        if (verbose_level >= 2) {
+            printf("\nVV: Files expanded into (%i):\n", args.no_targets);
+            cur_file = args.target;
+            for (i = 0; i < args.no_targets; i++) {
+                if (verbose_level >= 2) {
+                    printf("VVV:\t%lu\t%s\n", cur_file->ino, cur_file->file);
+                } else {
+                    printf("VV:\t%s\n", cur_file->file);
+                }
 
+                cur_file = cur_file->next;
+            }
+        } else {
+            printf("V: Expanded into: %i\n", args.no_targets);
+        }
+    }
+
+    /* Loop through all of the targets (file(s)/string) */
+    cur_file = args.target;
+    for (i = 0; i < args.no_targets; i++) {
+        /* Open the current file */
+        if (args.target_type == T_FILE) {
+            fp = fopen(cur_file->file, "r");
+            if (fp == NULL) {
+                fprintf(stderr, "Error: Couldn't open file \"%s\".\n",
+                        cur_file->file);
+            }
+        }
+
+        /* Do the correct hash */
+        switch (args.hash) {
+        case H_MD5:
+            /* Initialise MD5 hashing */
+            if (!md5_init()) {
+                fprintf(stderr, "Error: Couldn't initialise MD5 hashing.\n");
+                return 1;
+            }
+
+            if (args.target_type == T_STRING) {
+                /* Hash the string */
+                if (!md5_add_string(cur_file->file)) {
+                    fprintf(stderr, "Error: Couldn't add string.\n");
+                    return 1;
+                }
+            } else if (args.target_type == T_FILE) {
+                /* Hash the file */
+                if (!md5_add_file(fp)) {
+                    fprintf(stderr, "Error: Couldn't add file \"%s\".\n",
+                        cur_file->file);
+                    return 1;
+                }
+            }
+
+            /* Get the hash */
+            hash_out = malloc(33 * sizeof(char));
+            if (!md5_get_hash_str(hash_out)) {
+                fprintf(stderr, "Error: Couldn't complete hashing.\n");
+                return 1;
+            }
+
+            /* Print the hash */
+            if (args.target_type == T_STRING) {
+                printf("\"%s\" = %s\n", cur_file->file, hash_out);
+            } else {
+                printf("%s  %s\n", hash_out, cur_file->file);
+            }
+
+            free(hash_out);
+            break;
+        default:
+            printf("Error: Hash function not implemented yet.\n");
+            return 1;
+        }
+        
+        /* Next file */
+        cur_file = cur_file->next;
+    }
+
+#if 0
 	/* Array of 32 bit unsigned ints for MD5, SHA1, SHA256, SHA224 */
 	unsigned int i_hash_out[8];
 	/* Array of 64 bit unsigned ints for SHA512, SHA384 */
@@ -175,17 +366,17 @@ int main(int argc, char *argv[])
 	FILE *fp;
 
 	/* Start processing the hash */
-	switch (hash) {
+	switch (args.hash) {
 	case H_MD5:
 		/* Initialise MD5 hashing */
 		md5_init();
 
-		if (string_input && string_to_process != NULL) {
+		if (args.target_type == T_STRING) {
 			/* Hash the string */
-			md5_add_string(string_to_process);
-		} else if (file_input && file_to_process != NULL) {
+			md5_add_string(args->target->file);
+		} else if (args.target_type == T_FILE) {
 			/* Hash the file */
-			fp = fopen(file_to_process, "r");
+			fp = fopen(args->target->file, "r");
 			if (fp != NULL)
 				md5_add_file(fp);
 		}
@@ -335,7 +526,12 @@ int main(int argc, char *argv[])
 				ll_hash_out[0], ll_hash_out[1], ll_hash_out[2],
 				ll_hash_out[3], ll_hash_out[4], ll_hash_out[5]);
 		break;
+    default:
+        break;
 	}
+#endif
+
+    free_file_list(args.no_targets, args.target);
 
 	return 0;
 }
