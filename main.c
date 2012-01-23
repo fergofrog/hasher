@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
             printf("\nVV: Files expanded into (%i):\n", args.no_targets);
             cur_file = args.target;
             for (i = 0; i < args.no_targets; i++) {
-                if (verbose_level >= 2) {
+                if (verbose_level >= 3) {
                     printf("VVV:\t%lu\t%s\n", cur_file->ino, cur_file->file);
                 } else {
                     printf("VV:\t%s\n", cur_file->file);

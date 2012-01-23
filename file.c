@@ -153,7 +153,7 @@ unsigned int expand_files(unsigned int n_files, struct file_list_t **head)
                     n_expanded++;
                 }
             } else {
-                /* This is the first expansion, init the list */
+                /* This is the first expansion, initialise the list */
                 dirs_expanded_head = cur_dir_expanded =
                     malloc(sizeof(struct file_list_t));
 
@@ -167,6 +167,26 @@ unsigned int expand_files(unsigned int n_files, struct file_list_t **head)
             /* Copy the directory's name */
             temp_dir = malloc((strlen(cur->file) + 1) * sizeof(char));
             strcpy(temp_dir, cur->file);
+
+            /* Remove the directory from the list */
+            if (cur->dyn_alloc)
+                free(cur->file);
+            free(cur);
+
+            /* Move to the next element 
+             * Note: Contents of the directory will be inserted before here
+             *       the directory is removed to avoid issues with empty dirs
+             */
+            cur = next;
+            if (i == 0)
+                *head = cur;
+            if (prev != NULL)
+                prev->next = cur;
+            if (cur != NULL)
+                next = cur->next;
+
+            /* One less file */
+            n_files--;
 
             /* Open the directory */
             if ((dir = opendir(temp_dir)) != NULL) {
@@ -191,64 +211,37 @@ unsigned int expand_files(unsigned int n_files, struct file_list_t **head)
                         new_entry->file = temp_file;
                         new_entry->ino = cur_ino;
                         
-                        /* Insert the entry */
-                        if (n_inserted > 0) {
-                            /* Sort (insertion sort) the entry in */
-                            sort_prev = prev;
-                            sort_cur = cur;
-                            sort_i = 0;
+                        /* Sort (insertion sort) the entry in */
+                        sort_prev = prev;
+                        sort_cur = cur;
+                        sort_i = 0;
 
-                            /* Find the position */
-                            while (sort_i < n_inserted &&
-                                    strcmp(sort_cur->file, temp_file) < 0) {
-                                sort_prev = sort_cur;
-                                sort_cur = sort_cur->next;
-                                sort_i++;
-                            }
+                        /* Find the position */
+                        while (sort_i < n_inserted &&
+                                strcmp(sort_cur->file, temp_file) < 0) {
+                            sort_prev = sort_cur;
+                            sort_cur = sort_cur->next;
+                            sort_i++;
+                        }
 
-                            /* Insert the new entry in */
-                            new_entry->next = sort_cur;
-                            if (sort_prev != NULL)
-                                sort_prev->next = new_entry;
+                        /* Insert the new entry in */
+                        new_entry->next = sort_cur;
+                        if (sort_prev != NULL)
+                            sort_prev->next = new_entry;
 
-                            /* Boundry cases (if inserted as 1st or 2nd) */
-                            if (sort_i == 0) {
-                                next = cur;
-                                cur = new_entry;
-                                if (i == 0)
-                                    *head = new_entry;
-                            } else if (sort_i == 1) {
-                                next = new_entry;
-                            }
-
-                            /* Update the counters */
-                            n_files++;
-                            n_inserted++;
-                        } else {
-                            /* None inserted prior,
-                             *  replace the directry entry with this one
-                             */
-
-                            /* Free the filename, if allocated by malloc */
-                            if (cur->dyn_alloc)
-                                free(cur->file);
-                            /* Free the node */
-                            free(cur);
-
-                            /* Update the previous node's reference */
-                            if (prev != NULL)
-                                prev->next = new_entry;
-
-                            /* Update the next reference in the new node */
-                            new_entry->next = next;
-
-                            /* Update the global entries */
+                        /* Boundry cases (if inserted as 1st or 2nd) */
+                        if (sort_i == 0) {
+                            next = cur;
                             cur = new_entry;
                             if (i == 0)
                                 *head = new_entry;
-
-                            n_inserted++;
+                        } else if (sort_i == 1) {
+                            next = new_entry;
                         }
+
+                        /* Update the counters */
+                        n_files++;
+                        n_inserted++;
                     } else {
                         free(temp_file);
                     }
