@@ -264,6 +264,7 @@ int main(int argc, char *argv[])
     struct file_list_t *cur_file;
     FILE *fp;
     char *hash_out;
+    void *hash_state;
     
 	/* Not in hash yet */
 	in_hash = 0;
@@ -310,20 +311,21 @@ int main(int argc, char *argv[])
         switch (args.hash) {
         case H_MD5:
             /* Initialise MD5 hashing */
-            if (!md5_init()) {
+            hash_state = malloc(sizeof(struct md5_state));
+            if (!md5_init(hash_state)) {
                 fprintf(stderr, "Error: Couldn't initialise MD5 hashing.\n");
                 return 1;
             }
 
             if (args.target_type == T_STRING) {
                 /* Hash the string */
-                if (!md5_add_string(cur_file->file)) {
+                if (!md5_add_string(hash_state, cur_file->file)) {
                     fprintf(stderr, "Error: Couldn't add string.\n");
                     return 1;
                 }
             } else if (args.target_type == T_FILE) {
                 /* Hash the file */
-                if (!md5_add_file(fp)) {
+                if (!md5_add_file(hash_state, fp)) {
                     fprintf(stderr, "Error: Couldn't add file \"%s\".\n",
                         cur_file->file);
                     return 1;
@@ -332,7 +334,7 @@ int main(int argc, char *argv[])
 
             /* Get the hash */
             hash_out = malloc(33 * sizeof(char));
-            if (!md5_get_hash_str(hash_out)) {
+            if (!md5_get_hash_str(hash_state, hash_out)) {
                 fprintf(stderr, "Error: Couldn't complete hashing.\n");
                 return 1;
             }
@@ -345,6 +347,7 @@ int main(int argc, char *argv[])
             }
 
             free(hash_out);
+            free(hash_state);
             break;
         default:
             printf("Error: Hash function not implemented yet.\n");

@@ -23,10 +23,17 @@
 #ifndef MD5_H_
 #define MD5_H_
 
-char md5_init();
-char md5_add_string(char *);
-char md5_add_file(FILE *);
-char md5_get_hash(unsigned int []);
-char md5_get_hash_str(char []);
+struct md5_state {
+	unsigned int hash[4];
+	unsigned int length;
+	unsigned char cur_chunk[16][4];
+	unsigned int cur_chunk_pos;
+};
+
+char md5_init(struct md5_state *);
+char md5_add_string(struct md5_state *, char *);
+char md5_add_file(struct md5_state *, FILE *);
+char md5_get_hash(struct md5_state *, unsigned int []);
+char md5_get_hash_str(struct md5_state *, char []);
 
 #endif /* MD5_H_ */

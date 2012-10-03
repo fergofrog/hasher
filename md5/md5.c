@@ -60,35 +60,26 @@ const unsigned int operation_constants[64] =
 	 0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
 	 0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391};
 
-void md5_add_chunk();
+void md5_add_chunk(struct md5_state *);
 
 /**
  * Initialise MD5 hashing
  *
  * @return 1 if MD5 hashing was initialised (nothing else initialised), else 0
  */
-char md5_init()
+char md5_init(struct md5_state *state)
 {
-	/* Begin hashing if not currently hashing */
-	if (!in_hash) {
-		/* Initialise the hash variables - from RFC 1321 */
-		i_hash[0] = 0x67452301;
-		i_hash[1] = 0xEFCDAB89;
-		i_hash[2] = 0x98BADCFE;
-		i_hash[3] = 0x10325476;
+	/* Initialise the hash variables - from RFC 1321 */
+	state->hash[0] = 0x67452301;
+	state->hash[1] = 0xEFCDAB89;
+	state->hash[2] = 0x98BADCFE;
+	state->hash[3] = 0x10325476;
 
-		/* Initialise length and position variables */
-		hash_length = 0;
-		cur_chunk_pos = 0;
+	/* Initialise length and position variables */
+	state->length = 0;
+	state->cur_chunk_pos = 0;
 
-		/* Now in hash */
-		in_hash = 1;
-        hash_algorithm = H_MD5;
-
-		return 1;
-	} else {
-		return 0;
-	}
+	return 1;
 }
 
 /**
@@ -97,40 +88,35 @@ char md5_init()
  * @param str Null terminated string
  * @return 1 if the string was added, else 0
  */
-char md5_add_string(char *str)
+char md5_add_string(struct md5_state *state, char *str)
 {
-	/* Ensure we're currently hashing */
-	if (in_hash && hash_algorithm == H_MD5) {
-		int i;
+	int i;
+	/*
+	 * Loop through the string
+	 * character by character until null is reached
+	 */
+	for (i = 0; str[i] != '\0'; i++) {
 		/*
-		 * Loop through the string
-		 * character by character until null is reached
+		 * Convert the chunk position into the 2d chunk address
+		 *  and store the byte
 		 */
-		for (i = 0; str[i] != '\0'; i++) {
-			/*
-			 * Convert the chunk position into the 2d chunk address
-			 *  and store the byte
-			 */
-			cur_chunk[cur_chunk_pos / 4][cur_chunk_pos % 4] = str[i];
-			/* Increment the chunk position */
-			cur_chunk_pos++;
-			/* Add 8 bits to the length */
-			hash_length += 8;
+		state->cur_chunk[state->cur_chunk_pos / 4][state->cur_chunk_pos % 4] = str[i];
+		/* Increment the chunk position */
+		state->cur_chunk_pos++;
+		/* Add 8 bits to the length */
+		state->length += 8;
 
-			/*
-			 * If 64 bytes have been added, the chunk has
-			 *  been filled - process it
-			 */
-			if (cur_chunk_pos >= 64) {
-				md5_add_chunk();
-				cur_chunk_pos = 0;
-			}
+		/*
+		 * If 64 bytes have been added, the chunk has
+		 *  been filled - process it
+		 */
+		if (state->cur_chunk_pos >= 64) {
+			md5_add_chunk(state);
+			state->cur_chunk_pos = 0;
 		}
-
-		return 1;
-	} else {
-		return 0;
 	}
+
+	return 1;
 }
 
 /**
@@ -139,41 +125,36 @@ char md5_add_string(char *str)
  * @param fp File pointer to the file to be read from
  * @return 1 if the file's contents was added, else 0
  */
-char md5_add_file(FILE *fp)
+char md5_add_file(struct md5_state *state, FILE *fp)
 {
-	/* Ensure we're currently hashing */
-	if (in_hash && hash_algorithm == H_MD5) {
-		/* Get the first character */
-		int c = fgetc(fp);
-		/* Loop until end-of-file is reached */
-		while (c != EOF) {
-			/*
-			 * Convert the chunk position into the 2d chunk address
-			 *  and store the byte
-			 */
-			cur_chunk[cur_chunk_pos / 4][cur_chunk_pos % 4] = (unsigned char)c;
-			/* Increment the chunk position */
-			cur_chunk_pos++;
-			/* Add 8 bits to the length */
-			hash_length += 8;
+	/* Get the first character */
+	int c = fgetc(fp);
+	/* Loop until end-of-file is reached */
+	while (c != EOF) {
+		/*
+		 * Convert the chunk position into the 2d chunk address
+		 *  and store the byte
+		 */
+		state->cur_chunk[state->cur_chunk_pos / 4][state->cur_chunk_pos % 4] = (unsigned char) c;
+		/* Increment the chunk position */
+		state->cur_chunk_pos++;
+		/* Add 8 bits to the length */
+		state->length += 8;
 
-			/*
-			 * If 64 bytes have been added, the chunk has
-			 *  been filled - process it
-			 */
-			if (cur_chunk_pos >= 64) {
-				md5_add_chunk();
-				cur_chunk_pos = 0;
-			}
+		/*
+		 * If 64 bytes have been added, the chunk has
+		 *  been filled - process it
+		 */
+		if (state->cur_chunk_pos >= 64) {
+			md5_add_chunk(state);
+			state->cur_chunk_pos = 0;
+		}
 
-			/* Get the next character */
-			c = fgetc(fp);
-		};
+		/* Get the next character */
+		c = fgetc(fp);
+	};
 
-		return 1;
-	} else {
-		return 0;
-	}
+	return 1;
 }
 
 /**
@@ -182,63 +163,55 @@ char md5_add_file(FILE *fp)
  * @param hash_out Array of at least 4 unsigned ints
  * @return 1 if the hash was copied, else 0
  */
-char md5_get_hash(unsigned int hash_out[])
+char md5_get_hash(struct md5_state *state, unsigned int hash_out[])
 {
-	if (in_hash && hash_algorithm == H_MD5) {
-		/* Begin completing the hash by appending 0b10000000 */
-		cur_chunk[cur_chunk_pos / 4][cur_chunk_pos % 4] = 0x80;
-		cur_chunk_pos++;
+	/* Begin completing the hash by appending 0b10000000 */
+	state->cur_chunk[state->cur_chunk_pos / 4][state->cur_chunk_pos % 4] = 0x80;
+	state->cur_chunk_pos++;
 
-		/*
-		 * If the chunk pos is over 448 bits (56 bytes)
-		 *  complete the current chunk
-		 */
-		if (cur_chunk_pos > 56) {
-			/* Append 0's until the chunk is completed */
-			while (cur_chunk_pos < 64) {
-				cur_chunk[cur_chunk_pos / 4][cur_chunk_pos % 4] = 0x00;
-				cur_chunk_pos++;
-			}
-
-			/* Process the chunk */
-			md5_add_chunk();
-			cur_chunk_pos = 0;
-		}
-
-		/* Append 0's up until the 56th byte of the chunk
-		 * (leaving 8 bytes for the length)
-		 */
-		while (cur_chunk_pos < 56) {
-			cur_chunk[cur_chunk_pos / 4][cur_chunk_pos % 4] = 0x00;
-			cur_chunk_pos++;
-		}
-
-		/* Convert length into a byte array */
-		unsigned char length_b[8];
-		le_ll_to_b(hash_length, length_b);
-		/* Append the length byte array until the end */
-		while (cur_chunk_pos < 64) {
-			cur_chunk[cur_chunk_pos / 4][cur_chunk_pos % 4] =
-					length_b[cur_chunk_pos - 56];
-			cur_chunk_pos++;
+	/*
+	 * If the chunk pos is over 448 bits (56 bytes)
+	 *  complete the current chunk
+	 */
+	if (state->cur_chunk_pos > 56) {
+		/* Append 0's until the chunk is completed */
+		while (state->cur_chunk_pos < 64) {
+			state->cur_chunk[state->cur_chunk_pos / 4][state->cur_chunk_pos % 4] = 0x00;
+			state->cur_chunk_pos++;
 		}
 
 		/* Process the chunk */
-		md5_add_chunk();
-
-		/* Copy the hash over */
-		hash_out[0] = i_hash[0];
-		hash_out[1] = i_hash[1];
-		hash_out[2] = i_hash[2];
-		hash_out[3] = i_hash[3];
-
-		/* End hashing */
-		in_hash = 0;
-
-		return 1;
-	} else {
-		return 0;
+		md5_add_chunk(state);
+		state->cur_chunk_pos = 0;
 	}
+
+	/* Append 0's up until the 56th byte of the chunk
+	 * (leaving 8 bytes for the length)
+	 */
+	while (state->cur_chunk_pos < 56) {
+		state->cur_chunk[state->cur_chunk_pos / 4][state->cur_chunk_pos % 4] = 0x00;
+		state->cur_chunk_pos++;
+	}
+
+	/* Convert length into a byte array */
+	unsigned char length_b[8];
+	le_ll_to_b(state->length, length_b);
+    /* Append the length byte array until the end */
+	while (state->cur_chunk_pos < 64) {
+		state->cur_chunk[state->cur_chunk_pos / 4][state->cur_chunk_pos % 4] = length_b[state->cur_chunk_pos - 56];
+		state->cur_chunk_pos++;
+	}
+
+	/* Process the chunk */
+	md5_add_chunk(state);
+
+	/* Copy the hash over */
+	hash_out[0] = state->hash[0];
+	hash_out[1] = state->hash[1];
+	hash_out[2] = state->hash[2];
+	hash_out[3] = state->hash[3];
+
+	return 1;
 }
 
 /**
@@ -247,55 +220,51 @@ char md5_get_hash(unsigned int hash_out[])
  * @param hash_out A string of 32 chars to copy the hash into
  * @return 1 if the hash was copied, else 0
  */
-char md5_get_hash_str(char hash_out[])
+char md5_get_hash_str(struct md5_state *state, char hash_out[])
 {
-    char res, temp[2];
-    unsigned int i_hash[4], i, j;
+	char res, temp[2];
+	unsigned int hash_out_i[4], i, j;
 
-    /* Get the hash as a series of unsigned little-endian ints */
-    res = md5_get_hash(i_hash);
+	/* Get the hash as a series of unsigned little-endian ints */
+	res = md5_get_hash(state, hash_out_i);
 
-    if (!res) return 0;
+	if (!res) return 0;
 
-    /* Get the string representation of the hash */
-    sprintf(hash_out, "%08x%08x%08x%08x",
-            i_hash[0], i_hash[1],
-            i_hash[2], i_hash[3]);
+	/* Get the string representation of the hash */
+	sprintf(hash_out, "%08x%08x%08x%08x", hash_out_i[0], hash_out_i[1], hash_out_i[2], hash_out_i[3]);
 
-    /* Swap the characters around */
-    /* Outer loop: 4 groups of 8 */
-    for (i = 0; i < 4; i++) {
-        /* Inner loop: 2 pairs of 2 characters */
-        for (j = 0; j < 2; j++) {
-            /* Save the left pair */
-            temp[0] = hash_out[(i * 8) + (j * 2)];
-            temp[1] = hash_out[(i * 8) + (j * 2) + 1];
+	/* Swap the characters around */
+	/* Outer loop: 4 groups of 8 */
+	for (i = 0; i < 4; i++) {
+		/* Inner loop: 2 pairs of 2 characters */
+		for (j = 0; j < 2; j++) {
+			/* Save the left pair */
+			temp[0] = hash_out[(i * 8) + (j * 2)];
+			temp[1] = hash_out[(i * 8) + (j * 2) + 1];
 
-            /* Copy the right pair across */
-            hash_out[(i * 8) + (j * 2)] =
-                hash_out[(i * 8) + (6 - (j * 2))];
-            hash_out[(i * 8) + (j * 2) + 1] =
-                hash_out[(i * 8) + (7 - (j * 2))];
+			/* Copy the right pair across */
+			hash_out[(i * 8) + (j * 2)] = hash_out[(i * 8) + (6 - (j * 2))];
+			hash_out[(i * 8) + (j * 2) + 1] = hash_out[(i * 8) + (7 - (j * 2))];
 
-            /* Copy the original left to the right */
-            hash_out[(i * 8) + (6 - (j * 2))] = temp[0];
-            hash_out[(i * 8) + (7 - (j * 2))] = temp[1];
-        }
-    }
+			/* Copy the original left to the right */
+			hash_out[(i * 8) + (6 - (j * 2))] = temp[0];
+			hash_out[(i * 8) + (7 - (j * 2))] = temp[1];
+		}
+	}
 
-    return 1;
+	return 1;
 }
 
 /**
  * Process the current chunk
  */
-void md5_add_chunk()
+void md5_add_chunk(struct md5_state *state)
 {
 	unsigned int func_out, word_idx;
 	int i;
 
 	/* Copy the current hash into the chunk variables */
-	unsigned int a = i_hash[0], b = i_hash[1], c = i_hash[2], d = i_hash[3];
+	unsigned int a = state->hash[0], b = state->hash[1], c = state->hash[2], d = state->hash[3];
 
 	/* Loop through 64 times */
 	for (i = 0; i < 64; i++) {
@@ -321,15 +290,14 @@ void md5_add_chunk()
 		unsigned int tmp = d;
 		d = c;
 		c = b;
-		unsigned int b_prerot_sum = a + func_out +
-				operation_constants[i] + le_b_to_w(cur_chunk[word_idx]);
+		unsigned int b_prerot_sum = a + func_out + operation_constants[i] + le_b_to_w(state->cur_chunk[word_idx]);
 		b = b + i_l_rot(b_prerot_sum, rotate_amounts[i / 16][i % 4]);
 		a = tmp;
 	}
 
 	/* Add the chunk variables back into the current hash */
-	i_hash[0] += a;
-	i_hash[1] += b;
-	i_hash[2] += c;
-	i_hash[3] += d;
+	state->hash[0] += a;
+	state->hash[1] += b;
+	state->hash[2] += c;
+	state->hash[3] += d;
 }
