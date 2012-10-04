@@ -43,6 +43,9 @@
 /** Boolean False definition */
 #define FALSE 0
 
+/** Do not hash flag */
+#define ARG_NO_HASH 0x01
+
 enum target_t {
     T_FILE,
     T_STRING
@@ -52,6 +55,7 @@ struct args_t {
     enum hash_t hash;
     enum target_t target_type;
     unsigned int no_targets;
+    unsigned int flags;
     struct file_list_t *target;
 };
 
@@ -106,7 +110,7 @@ void process_args(int argc, char *const *argv, struct args_t *args)
         {"version", no_argument, NULL, 'v'}
     };
     /* Recognised short options */
-    static char *shortopts = "s:hvV";
+    static char *shortopts = "s:hvVH";
 
     struct file_list_t *cur_file;
     int indexptr;
@@ -128,6 +132,7 @@ void process_args(int argc, char *const *argv, struct args_t *args)
             /* String target selected */
             args->target_type = T_STRING;
             args->target = malloc(sizeof(struct file_list_t));
+            check_malloc(args->target);
             args->target->file = optarg;
             /* Helps with freeing in main */
             args->no_targets = 1;
@@ -146,6 +151,10 @@ void process_args(int argc, char *const *argv, struct args_t *args)
         case 'V':
             /* Increment verbosity level */
             verbose_level++;
+            break;
+        case 'H':
+            /* Do not hash */
+            args->flags |= ARG_NO_HASH;
             break;
         case '?':
             /* Unknown option */
@@ -183,6 +192,7 @@ void process_args(int argc, char *const *argv, struct args_t *args)
 
             /* Create the file list head */
             args->target = cur_file = malloc(sizeof(struct file_list_t));
+            check_malloc(cur_file);
             cur_file->dyn_alloc = 0;
             cur_file->file = argv[optind++];
             cur_file->ino = cur_ino;
@@ -205,6 +215,7 @@ void process_args(int argc, char *const *argv, struct args_t *args)
                 }
 
                 cur_file->next = malloc(sizeof(struct file_list_t));
+                check_malloc(cur_file->next);
                 cur_file = cur_file->next;
 
                 cur_file->dyn_alloc = 0;
@@ -214,7 +225,7 @@ void process_args(int argc, char *const *argv, struct args_t *args)
            }
         } else {
             /* No string given and no additional arguments remain */
-            fprintf(stderr, "Error: No string or file given.\n\n");
+            fprintf(stderr, "Error: no string or file given.\n\n");
             print_help(argv[0], stderr);
             exit(1);
         }
@@ -295,15 +306,20 @@ int main(int argc, char *argv[])
         }
     }
 
+    if (args.flags & ARG_NO_HASH) {
+        free_file_list(args.no_targets, args.target);
+        return 0;
+    }
+
     /* Loop through all of the targets (file(s)/string) */
     cur_file = args.target;
     for (i = 0; i < args.no_targets; i++) {
         /* Open the current file */
         if (args.target_type == T_FILE) {
-            fp = fopen(cur_file->file, "r");
+            fp = fopen(cur_file->file, "rb");
             if (fp == NULL) {
-                fprintf(stderr, "Error: Couldn't open file \"%s\".\n",
-                        cur_file->file);
+                fprintf(stderr, "Error: couldn't open file \"%s\": ", cur_file->file);
+                perror(NULL);
             }
         }
 
@@ -312,21 +328,22 @@ int main(int argc, char *argv[])
         case H_MD5:
             /* Initialise MD5 hashing */
             hash_state = malloc(sizeof(struct md5_state));
+            check_malloc(hash_state);
             if (!md5_init(hash_state)) {
-                fprintf(stderr, "Error: Couldn't initialise MD5 hashing.\n");
+                fprintf(stderr, "Error: couldn't initialise MD5 hashing.\n");
                 return 1;
             }
 
             if (args.target_type == T_STRING) {
                 /* Hash the string */
                 if (!md5_add_string(hash_state, cur_file->file)) {
-                    fprintf(stderr, "Error: Couldn't add string.\n");
+                    fprintf(stderr, "Error: couldn't hash the string.\n");
                     return 1;
                 }
             } else if (args.target_type == T_FILE) {
                 /* Hash the file */
                 if (!md5_add_file(hash_state, fp)) {
-                    fprintf(stderr, "Error: Couldn't add file \"%s\".\n",
+                    fprintf(stderr, "Error: couldn't hash the file \"%s\".\n",
                         cur_file->file);
                     return 1;
                 }
@@ -334,8 +351,9 @@ int main(int argc, char *argv[])
 
             /* Get the hash */
             hash_out = malloc(33 * sizeof(char));
+            check_malloc(hash_out);
             if (!md5_get_hash_str(hash_state, hash_out)) {
-                fprintf(stderr, "Error: Couldn't complete hashing.\n");
+                fprintf(stderr, "Error: couldn't complete hashing.\n");
                 return 1;
             }
 
@@ -350,7 +368,7 @@ int main(int argc, char *argv[])
             free(hash_state);
             break;
         default:
-            printf("Error: Hash function not implemented yet.\n");
+            printf("Error: hash function not implemented yet.\n");
             return 1;
         }
         

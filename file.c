@@ -25,8 +25,10 @@
 #include <dirent.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "file.h"
+#include "global.h"
 
 /**
  * Check whether filename given is a file
@@ -142,8 +144,8 @@ unsigned int expand_files(unsigned int n_files, struct file_list_t **head)
                     continue;
                 } else {
                     /* Haven't expanded, add it to the list */
-                    cur_dir_expanded->next =
-                        malloc(sizeof(struct file_list_t));
+                    cur_dir_expanded->next = malloc(sizeof(struct file_list_t));
+                    check_malloc(cur_dir_expanded->next);
                     cur_dir_expanded = cur_dir_expanded->next;
 
                     cur_dir_expanded->dyn_alloc = 0;
@@ -154,8 +156,8 @@ unsigned int expand_files(unsigned int n_files, struct file_list_t **head)
                 }
             } else {
                 /* This is the first expansion, initialise the list */
-                dirs_expanded_head = cur_dir_expanded =
-                    malloc(sizeof(struct file_list_t));
+                dirs_expanded_head = cur_dir_expanded = malloc(sizeof(struct file_list_t));
+                check_malloc(cur_dir_expanded);
 
                 cur_dir_expanded->dyn_alloc = 0;
                 cur_dir_expanded->file = NULL;
@@ -166,6 +168,7 @@ unsigned int expand_files(unsigned int n_files, struct file_list_t **head)
 
             /* Copy the directory's name */
             temp_dir = malloc((strlen(cur->file) + 1) * sizeof(char));
+            check_malloc(temp_dir);
             strcpy(temp_dir, cur->file);
 
             /* Remove the directory from the list */
@@ -207,6 +210,7 @@ unsigned int expand_files(unsigned int n_files, struct file_list_t **head)
                             !file_listed(cur_ino, n_files, *head)) {
                         /* Create the new list entry */
                         new_entry = malloc(sizeof(struct file_list_t));
+                        check_malloc(new_entry);
                         new_entry->dyn_alloc = 1;
                         new_entry->file = temp_file;
                         new_entry->ino = cur_ino;
@@ -293,41 +297,34 @@ char file_listed(ino_t target_ino, unsigned int n_files,
 
 char *make_file_name(char *dir, char *name)
 {
-    unsigned int dir_len, name_len, i, rel_i;
+    unsigned int dir_len, name_len, adding_fslash;
     char *new_name;
-    char adding_fslash;
 
     /* Get the string lengths */
     dir_len = strlen(dir);
     name_len = strlen(name);
 
     /* Check whether a forward slash (/) is already in dir */
-    adding_fslash = !(dir[dir_len - 1] == '/' || dir[dir_len - 1] == '\\');
+    adding_fslash = !(dir[dir_len - 1] == '/' || dir[dir_len - 1] == '\\') ? 1 : 0;
 
     /* Allocate the space for the name,
      * plus 1 for separator (if needed) and 1 for null terminator
      */
     new_name = malloc((dir_len + adding_fslash + name_len + 1) * sizeof(char));
+    check_malloc(new_name);
 
-    i = 0;
     /* Copy the directory over */
-    while (i < dir_len) {
-        new_name[i] = dir[i];
-        i++;
-    }
+    memcpy(new_name, dir, dir_len);
 
     /* Add directory separator (if needed) */
     if (adding_fslash)
-        new_name[i++] = '/';
+        new_name[dir_len] = '/';
 
-    /* Keep track of the position within the name (saves maths) */
-    rel_i = 0;
-    while (rel_i < name_len) {
-        new_name[i++] = name[rel_i++];
-    }
+    /* Copy the file name over */
+    memcpy(new_name + dir_len + adding_fslash, name, name_len);
 
     /* Null terminator */
-    new_name[i] = '\0';
+    new_name[dir_len + adding_fslash + name_len] = '\0';
 
     return new_name;
 }

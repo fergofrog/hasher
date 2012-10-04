@@ -23,6 +23,14 @@
 #ifndef GLOBAL_H_
 #define GLOBAL_H_
 
+#define check_malloc(a)                                         \
+    do {                                                        \
+        if ((a) == NULL) {                                      \
+            perror("Error: could not allocate enough memory");  \
+            exit(1);                                            \
+        }                                                       \
+    } while(0)
+
 #define min(A, B) ((A) < (B) ? (A) : (B))
 
 /** Hash types known */

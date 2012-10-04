@@ -146,7 +146,7 @@ char md5_add_file(struct md5_state *state, FILE *fp)
             if (feof(fp)) {
                 complete = 1;
             } else {
-                perror("An error in reading the file occurred.");
+                perror("Error: could not read the file");
             }
         }
     } while (!complete);
