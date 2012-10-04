@@ -1,3 +1,15 @@
 Various hashing algorithms in one package.
 
 Run make all to build.
+
+TODO:
+ - separate md5 from global.h and make it stateful - done
+ - change file reading to use fread
+ - change cur_chunk to be uint
+   - add_string -> strncpy
+   - get_hash -> memset
+   - add_chunk -> w.o. le_b_to_w
+ - change to proper error printing (perror)
+ - check for malloc errors
+ - threadify file seaching and hashing
+ - add ui

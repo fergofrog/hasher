@@ -127,32 +127,29 @@ char md5_add_string(struct md5_state *state, char *str)
  */
 char md5_add_file(struct md5_state *state, FILE *fp)
 {
-	/* Get the first character */
-	int c = fgetc(fp);
-	/* Loop until end-of-file is reached */
-	while (c != EOF) {
-		/*
-		 * Convert the chunk position into the 2d chunk address
-		 *  and store the byte
-		 */
-		state->cur_chunk[state->cur_chunk_pos / 4][state->cur_chunk_pos % 4] = (unsigned char) c;
-		/* Increment the chunk position */
-		state->cur_chunk_pos++;
-		/* Add 8 bits to the length */
-		state->length += 8;
+    char complete = 0;
+    size_t num_read;
 
-		/*
-		 * If 64 bytes have been added, the chunk has
-		 *  been filled - process it
-		 */
-		if (state->cur_chunk_pos >= 64) {
-			md5_add_chunk(state);
-			state->cur_chunk_pos = 0;
-		}
+    do {
+        num_read = fread(&(((unsigned char *) state->cur_chunk)[state->cur_chunk_pos]), sizeof(unsigned char), MD5_CHUNK_LEN - state->cur_chunk_pos, fp);
+        /* Increment the chunk position */
+        state->cur_chunk_pos += num_read;
+        /* Add to the length */
+        state->length += num_read * 8;
 
-		/* Get the next character */
-		c = fgetc(fp);
-	};
+        /* If 64 bytes have been added, the chunk has been filled - process it */
+        if (state->cur_chunk_pos == MD5_CHUNK_LEN) {
+            md5_add_chunk(state);
+            state->cur_chunk_pos = 0;
+        } else {
+            /* The full chunk wasn't filled by fread - check for eof or error */
+            if (feof(fp)) {
+                complete = 1;
+            } else {
+                perror("An error in reading the file occurred.");
+            }
+        }
+    } while (!complete);
 
 	return 1;
 }

@@ -1,5 +1,7 @@
-CFLAGS = -Wall -g
-LDFLAGS = 
+CFLAGS = -Wall
+CFLAGS += -O2
+CFLAGS += -g -pg
+LDFLAGS = -g -pg
 SOURCES = main.c global.c file.c md5/md5.c sha1/sha1.c sha2/sha2.c
 OBJECTS = $(SOURCES:.c=.o)
 EXECUTABLE = hasher
