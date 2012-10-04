@@ -201,3 +201,9 @@ void le_ll_to_b(unsigned long long ll, unsigned char b[])
 	b[6] = (ll & 0x00FF000000000000) >> 48;
 	b[7] = (ll & 0xFF00000000000000) >> 56;
 }
+
+void le_ll_to_i(unsigned long long ll, unsigned int i[])
+{
+    i[0] = (ll & 0x00000000FFFFFFFF) >>  0;
+    i[1] = (ll & 0xFFFFFFFF00000000) >> 32;
+}

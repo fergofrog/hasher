@@ -30,7 +30,7 @@
 struct md5_state {
 	unsigned int hash[4];
 	unsigned int length;
-	unsigned char cur_chunk[MD5_CHUNK_NUM_WORDS][MD5_CHUNK_WORD_SIZE];
+	unsigned int cur_chunk[MD5_CHUNK_NUM_WORDS];
 	unsigned int cur_chunk_pos;
 };
 

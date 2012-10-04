@@ -22,6 +22,7 @@
  */
 /* Includes */
 #include <stdio.h>
+#include <string.h>
 
 #include "../global.h"
 #include "md5.h"
@@ -36,12 +37,15 @@
 #define MD5_FUNC_I(X, Y, Z) ((Y) ^ ((X) | ~(Z)))
 
 /** Per-round rotate amounts - from RFC 1321 */
+/*
 const unsigned int rotate_amounts[4][4] =
 	{{ 7, 12, 17, 22},
 	 { 5,  9, 14, 20},
 	 { 4, 11, 16, 23},
 	 { 6, 10, 15, 21}};
+*/
 /** Per-round addition constants - from RFC 1321 */
+/*
 const unsigned int operation_constants[64] =
 	{0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee,
 	 0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
@@ -59,6 +63,7 @@ const unsigned int operation_constants[64] =
 	 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
 	 0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
 	 0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391};
+*/
 
 void md5_add_chunk(struct md5_state *);
 
@@ -90,31 +95,26 @@ char md5_init(struct md5_state *state)
  */
 char md5_add_string(struct md5_state *state, char *str)
 {
-	int i;
-	/*
-	 * Loop through the string
-	 * character by character until null is reached
-	 */
-	for (i = 0; str[i] != '\0'; i++) {
-		/*
-		 * Convert the chunk position into the 2d chunk address
-		 *  and store the byte
-		 */
-		state->cur_chunk[state->cur_chunk_pos / 4][state->cur_chunk_pos % 4] = str[i];
-		/* Increment the chunk position */
-		state->cur_chunk_pos++;
-		/* Add 8 bits to the length */
-		state->length += 8;
+    unsigned int n;
+	unsigned int str_pos;
+    size_t str_length;
 
-		/*
-		 * If 64 bytes have been added, the chunk has
-		 *  been filled - process it
-		 */
-		if (state->cur_chunk_pos >= 64) {
-			md5_add_chunk(state);
-			state->cur_chunk_pos = 0;
-		}
-	}
+    str_pos = 0;
+    str_length = strlen(str);
+
+    while (str_length > 0) {
+        n = min(str_length, MD5_CHUNK_LEN - state->cur_chunk_pos);
+        memcpy(((unsigned char *) state->cur_chunk) + state->cur_chunk_pos, str + str_pos, n);
+
+        str_pos += n;
+        state->cur_chunk_pos += n;
+        str_length -= n;
+
+        if (state->cur_chunk_pos >= 64) {
+            md5_add_chunk(state);
+            state->cur_chunk_pos = 0;
+        }
+    }
 
 	return 1;
 }
@@ -131,7 +131,7 @@ char md5_add_file(struct md5_state *state, FILE *fp)
     size_t num_read;
 
     do {
-        num_read = fread(&(((unsigned char *) state->cur_chunk)[state->cur_chunk_pos]), sizeof(unsigned char), MD5_CHUNK_LEN - state->cur_chunk_pos, fp);
+        num_read = fread(((unsigned char *) state->cur_chunk) + state->cur_chunk_pos, sizeof(unsigned char), MD5_CHUNK_LEN - state->cur_chunk_pos, fp);
         /* Increment the chunk position */
         state->cur_chunk_pos += num_read;
         /* Add to the length */
@@ -163,7 +163,7 @@ char md5_add_file(struct md5_state *state, FILE *fp)
 char md5_get_hash(struct md5_state *state, unsigned int hash_out[])
 {
 	/* Begin completing the hash by appending 0b10000000 */
-	state->cur_chunk[state->cur_chunk_pos / 4][state->cur_chunk_pos % 4] = 0x80;
+    *(((unsigned char *) state->cur_chunk) + state->cur_chunk_pos) = 0x80;
 	state->cur_chunk_pos++;
 
 	/*
@@ -172,10 +172,7 @@ char md5_get_hash(struct md5_state *state, unsigned int hash_out[])
 	 */
 	if (state->cur_chunk_pos > 56) {
 		/* Append 0's until the chunk is completed */
-		while (state->cur_chunk_pos < 64) {
-			state->cur_chunk[state->cur_chunk_pos / 4][state->cur_chunk_pos % 4] = 0x00;
-			state->cur_chunk_pos++;
-		}
+        memset(((unsigned char *) state->cur_chunk) + state->cur_chunk_pos, 0x00, 64 - state->cur_chunk_pos);
 
 		/* Process the chunk */
 		md5_add_chunk(state);
@@ -185,19 +182,15 @@ char md5_get_hash(struct md5_state *state, unsigned int hash_out[])
 	/* Append 0's up until the 56th byte of the chunk
 	 * (leaving 8 bytes for the length)
 	 */
-	while (state->cur_chunk_pos < 56) {
-		state->cur_chunk[state->cur_chunk_pos / 4][state->cur_chunk_pos % 4] = 0x00;
-		state->cur_chunk_pos++;
-	}
+    memset(((unsigned char *) state->cur_chunk) + state->cur_chunk_pos, 0x00, 56 - state->cur_chunk_pos);
+	state->cur_chunk_pos = 56;
 
 	/* Convert length into a byte array */
-	unsigned char length_b[8];
-	le_ll_to_b(state->length, length_b);
+	unsigned int length_i[8];
+	le_ll_to_i(state->length, length_i);
     /* Append the length byte array until the end */
-	while (state->cur_chunk_pos < 64) {
-		state->cur_chunk[state->cur_chunk_pos / 4][state->cur_chunk_pos % 4] = length_b[state->cur_chunk_pos - 56];
-		state->cur_chunk_pos++;
-	}
+    state->cur_chunk[14] = length_i[0];
+    state->cur_chunk[15] = length_i[1];
 
 	/* Process the chunk */
 	md5_add_chunk(state);
@@ -252,45 +245,88 @@ char md5_get_hash_str(struct md5_state *state, char hash_out[])
 	return 1;
 }
 
+#define MD5_STEP(f, w, x, y, z, data, constant, rot)    \
+    do {                                                \
+        w += f + data + constant;                       \
+        w = w << rot | w >> (32 - rot);                 \
+        w += x;                                         \
+    } while (0)
+
 /**
  * Process the current chunk
  */
 void md5_add_chunk(struct md5_state *state)
 {
-	unsigned int func_out, word_idx;
-	int i;
-
 	/* Copy the current hash into the chunk variables */
 	unsigned int a = state->hash[0], b = state->hash[1], c = state->hash[2], d = state->hash[3];
 
-	/* Loop through 64 times */
-	for (i = 0; i < 64; i++) {
-		/*
-		 * Get the function output and determine which word to use -
-		 *  according to the current pass
-		 */
-		if (i >= 0 && i < 16) {
-			func_out = MD5_FUNC_F(b, c, d);
-			word_idx = i;
-		} else if (i >= 16 && i < 32) {
-			func_out = MD5_FUNC_G(b, c, d);
-			word_idx = (5 * i + 1) % 16;
-		} else if (i >= 32 && i < 48) {
-			func_out = MD5_FUNC_H(b, c, d);
-			word_idx = (3 * i + 5) % 16;
-		} else {
-			func_out = MD5_FUNC_I(b, c, d);
-			word_idx = (7 * i) % 16;
-		}
+    MD5_STEP(MD5_FUNC_F(b,c,d), a, b, c, d, state->cur_chunk[0], 0xd76aa478L, 7);
+    MD5_STEP(MD5_FUNC_F(a,b,c), d, a, b, c, state->cur_chunk[1], 0xe8c7b756L, 12);
+    MD5_STEP(MD5_FUNC_F(d,a,b), c, d, a, b, state->cur_chunk[2], 0x242070dbL, 17);
+    MD5_STEP(MD5_FUNC_F(c,d,a), b, c, d, a, state->cur_chunk[3], 0xc1bdceeeL, 22);
+    MD5_STEP(MD5_FUNC_F(b,c,d), a, b, c, d, state->cur_chunk[4], 0xf57c0fafL, 7);
+    MD5_STEP(MD5_FUNC_F(a,b,c), d, a, b, c, state->cur_chunk[5], 0x4787c62aL, 12);
+    MD5_STEP(MD5_FUNC_F(d,a,b), c, d, a, b, state->cur_chunk[6], 0xa8304613L, 17);
+    MD5_STEP(MD5_FUNC_F(c,d,a), b, c, d, a, state->cur_chunk[7], 0xfd469501L, 22);
+    MD5_STEP(MD5_FUNC_F(b,c,d), a, b, c, d, state->cur_chunk[8], 0x698098d8L, 7);
+    MD5_STEP(MD5_FUNC_F(a,b,c), d, a, b, c, state->cur_chunk[9], 0x8b44f7afL, 12);
+    MD5_STEP(MD5_FUNC_F(d,a,b), c, d, a, b, state->cur_chunk[10], 0xffff5bb1L, 17);
+    MD5_STEP(MD5_FUNC_F(c,d,a), b, c, d, a, state->cur_chunk[11], 0x895cd7beL, 22);
+    MD5_STEP(MD5_FUNC_F(b,c,d), a, b, c, d, state->cur_chunk[12], 0x6b901122L, 7);
+    MD5_STEP(MD5_FUNC_F(a,b,c), d, a, b, c, state->cur_chunk[13], 0xfd987193L, 12);
+    MD5_STEP(MD5_FUNC_F(d,a,b), c, d, a, b, state->cur_chunk[14], 0xa679438eL, 17);
+    MD5_STEP(MD5_FUNC_F(c,d,a), b, c, d, a, state->cur_chunk[15], 0x49b40821L, 22);
 
-		/* Do the shift and generate the new b */
-		unsigned int tmp = d;
-		d = c;
-		c = b;
-		unsigned int b_prerot_sum = a + func_out + operation_constants[i] + le_b_to_w(state->cur_chunk[word_idx]);
-		b = b + i_l_rot(b_prerot_sum, rotate_amounts[i / 16][i % 4]);
-		a = tmp;
-	}
+    MD5_STEP(MD5_FUNC_G(b,c,d), a, b, c, d, state->cur_chunk[1], 0xf61e2562L, 5);
+    MD5_STEP(MD5_FUNC_G(a,b,c), d, a, b, c, state->cur_chunk[6], 0xc040b340L, 9);
+    MD5_STEP(MD5_FUNC_G(d,a,b), c, d, a, b, state->cur_chunk[11], 0x265e5a51L, 14);
+    MD5_STEP(MD5_FUNC_G(c,d,a), b, c, d, a, state->cur_chunk[0], 0xe9b6c7aaL, 20);
+    MD5_STEP(MD5_FUNC_G(b,c,d), a, b, c, d, state->cur_chunk[5], 0xd62f105dL, 5);
+    MD5_STEP(MD5_FUNC_G(a,b,c), d, a, b, c, state->cur_chunk[10], 0x02441453L, 9);
+    MD5_STEP(MD5_FUNC_G(d,a,b), c, d, a, b, state->cur_chunk[15], 0xd8a1e681L, 14);
+    MD5_STEP(MD5_FUNC_G(c,d,a), b, c, d, a, state->cur_chunk[4], 0xe7d3fbc8L, 20);
+    MD5_STEP(MD5_FUNC_G(b,c,d), a, b, c, d, state->cur_chunk[9], 0x21e1cde6L, 5);
+    MD5_STEP(MD5_FUNC_G(a,b,c), d, a, b, c, state->cur_chunk[14], 0xc33707d6L, 9);
+    MD5_STEP(MD5_FUNC_G(d,a,b), c, d, a, b, state->cur_chunk[3], 0xf4d50d87L, 14);
+    MD5_STEP(MD5_FUNC_G(c,d,a), b, c, d, a, state->cur_chunk[8], 0x455a14edL, 20);
+    MD5_STEP(MD5_FUNC_G(b,c,d), a, b, c, d, state->cur_chunk[13], 0xa9e3e905L, 5);
+    MD5_STEP(MD5_FUNC_G(a,b,c), d, a, b, c, state->cur_chunk[2], 0xfcefa3f8L, 9);
+    MD5_STEP(MD5_FUNC_G(d,a,b), c, d, a, b, state->cur_chunk[7], 0x676f02d9L, 14);
+    MD5_STEP(MD5_FUNC_G(c,d,a), b, c, d, a, state->cur_chunk[12], 0x8d2a4c8aL, 20);
+
+    MD5_STEP(MD5_FUNC_H(b,c,d), a, b, c, d, state->cur_chunk[5], 0xfffa3942L, 4);
+    MD5_STEP(MD5_FUNC_H(a,b,c), d, a, b, c, state->cur_chunk[8], 0x8771f681L, 11);
+    MD5_STEP(MD5_FUNC_H(d,a,b), c, d, a, b, state->cur_chunk[11], 0x6d9d6122L, 16);
+    MD5_STEP(MD5_FUNC_H(c,d,a), b, c, d, a, state->cur_chunk[14], 0xfde5380cL, 23);
+    MD5_STEP(MD5_FUNC_H(b,c,d), a, b, c, d, state->cur_chunk[1], 0xa4beea44L, 4);
+    MD5_STEP(MD5_FUNC_H(a,b,c), d, a, b, c, state->cur_chunk[4], 0x4bdecfa9L, 11);
+    MD5_STEP(MD5_FUNC_H(d,a,b), c, d, a, b, state->cur_chunk[7], 0xf6bb4b60L, 16);
+    MD5_STEP(MD5_FUNC_H(c,d,a), b, c, d, a, state->cur_chunk[10], 0xbebfbc70L, 23);
+    MD5_STEP(MD5_FUNC_H(b,c,d), a, b, c, d, state->cur_chunk[13], 0x289b7ec6L, 4);
+    MD5_STEP(MD5_FUNC_H(a,b,c), d, a, b, c, state->cur_chunk[0], 0xeaa127faL, 11);
+    MD5_STEP(MD5_FUNC_H(d,a,b), c, d, a, b, state->cur_chunk[3], 0xd4ef3085L, 16);
+    MD5_STEP(MD5_FUNC_H(c,d,a), b, c, d, a, state->cur_chunk[6], 0x04881d05L, 23);
+    MD5_STEP(MD5_FUNC_H(b,c,d), a, b, c, d, state->cur_chunk[9], 0xd9d4d039L, 4);
+    MD5_STEP(MD5_FUNC_H(a,b,c), d, a, b, c, state->cur_chunk[12], 0xe6db99e5L, 11);
+    MD5_STEP(MD5_FUNC_H(d,a,b), c, d, a, b, state->cur_chunk[15], 0x1fa27cf8L, 16);
+    MD5_STEP(MD5_FUNC_H(c,d,a), b, c, d, a, state->cur_chunk[2], 0xc4ac5665L, 23);
+
+    MD5_STEP(MD5_FUNC_I(b,c,d), a, b, c, d, state->cur_chunk[0], 0xf4292244L, 6);
+    MD5_STEP(MD5_FUNC_I(a,b,c), d, a, b, c, state->cur_chunk[7], 0x432aff97L, 10);
+    MD5_STEP(MD5_FUNC_I(d,a,b), c, d, a, b, state->cur_chunk[14], 0xab9423a7L, 15);
+    MD5_STEP(MD5_FUNC_I(c,d,a), b, c, d, a, state->cur_chunk[5], 0xfc93a039L, 21);
+    MD5_STEP(MD5_FUNC_I(b,c,d), a, b, c, d, state->cur_chunk[12], 0x655b59c3L, 6);
+    MD5_STEP(MD5_FUNC_I(a,b,c), d, a, b, c, state->cur_chunk[3], 0x8f0ccc92L, 10);
+    MD5_STEP(MD5_FUNC_I(d,a,b), c, d, a, b, state->cur_chunk[10], 0xffeff47dL, 15);
+    MD5_STEP(MD5_FUNC_I(c,d,a), b, c, d, a, state->cur_chunk[1], 0x85845dd1L, 21);
+    MD5_STEP(MD5_FUNC_I(b,c,d), a, b, c, d, state->cur_chunk[8], 0x6fa87e4fL, 6);
+    MD5_STEP(MD5_FUNC_I(a,b,c), d, a, b, c, state->cur_chunk[15], 0xfe2ce6e0L, 10);
+    MD5_STEP(MD5_FUNC_I(d,a,b), c, d, a, b, state->cur_chunk[6], 0xa3014314L, 15);
+    MD5_STEP(MD5_FUNC_I(c,d,a), b, c, d, a, state->cur_chunk[13], 0x4e0811a1L, 21);
+    MD5_STEP(MD5_FUNC_I(b,c,d), a, b, c, d, state->cur_chunk[4], 0xf7537e82L, 6);
+    MD5_STEP(MD5_FUNC_I(a,b,c), d, a, b, c, state->cur_chunk[11], 0xbd3af235L, 10);
+    MD5_STEP(MD5_FUNC_I(d,a,b), c, d, a, b, state->cur_chunk[2], 0x2ad7d2bbL, 15);
+    MD5_STEP(MD5_FUNC_I(c,d,a), b, c, d, a, state->cur_chunk[9], 0xeb86d391L, 21);
 
 	/* Add the chunk variables back into the current hash */
 	state->hash[0] += a;

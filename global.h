@@ -23,6 +23,8 @@
 #ifndef GLOBAL_H_
 #define GLOBAL_H_
 
+#define min(A, B) ((A) < (B) ? (A) : (B))
+
 /** Hash types known */
 enum hash_t {
     H_MD5    = 0,
@@ -56,5 +58,8 @@ void be_llll_to_b(unsigned long long, unsigned long long, unsigned char []);
 
 unsigned int le_b_to_w(unsigned char []);
 void le_ll_to_b(unsigned long long, unsigned char []);
+
+/* NEW */
+void le_ll_to_i(unsigned long long, unsigned int []);
 
 #endif /* GLOBAL_H_ */
