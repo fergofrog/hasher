@@ -8,7 +8,7 @@
  * @version 0.4
  *
  * @section LICENSE
- * Copyright (C) 2011 FergoFrog
+ * Copyright (C) 2011-2012 FergoFrog
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,9 +28,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <getopt.h>
+#include <errno.h>
 
 #include "global.h"
 #include "file.h"
+#include "hash.h"
 #include "md5/md5.h"
 #include "sha1/sha1.h"
 #include "sha2/sha2.h"
@@ -42,22 +44,6 @@
 #define TRUE 1
 /** Boolean False definition */
 #define FALSE 0
-
-/** Do not hash flag */
-#define ARG_NO_HASH 0x01
-
-enum target_t {
-    T_FILE,
-    T_STRING
-};
-
-struct args_t {
-    enum hash_t hash;
-    enum target_t target_type;
-    unsigned int no_targets;
-    unsigned int flags;
-    struct file_list_t *target;
-};
 
 /** Print version to stdout */
 void print_version()
@@ -75,6 +61,9 @@ void print_help(char *program, FILE *fout)
 	fprintf(fout, "usage: %s [--algo] [-s string] [-hv] [file]\n\n",
 			program);
 	fprintf(fout, "\t-s, --string\tstring input\n");
+#ifndef NTHERAD
+    fprintf(fout, "\t-t, --threads\tnumber of thread (default: no cores, 0 to disable)");
+#endif
 	fprintf(fout, "\t-h, --help\tthis message\n");
     fprintf(fout, "\t-v, --version\tversion info");
     fprintf(fout, "\nKnown Algorithms:\n");
@@ -106,19 +95,27 @@ void process_args(int argc, char *const *argv, struct args_t *args)
         {"sha512", no_argument, &hash_type, H_SHA512},
         {"sha384", no_argument, &hash_type, H_SHA384},
         {"string", required_argument, NULL, 's'},
+        {"threads", required_argument, NULL, 't'},
         {"help", no_argument, NULL, 'h'},
         {"version", no_argument, NULL, 'v'}
     };
     /* Recognised short options */
-    static char *shortopts = "s:hvVH";
+    static char *shortopts = "s:t:hvVH";
 
     struct file_list_t *cur_file;
     int indexptr;
     int c;
     ino_t cur_ino;
 
+    /* Clear the flags */
+    args->flags = 0;
+
     /* Assuming it's a file input, unless string given */
     args->target_type = T_FILE;
+
+    /* Default of 2 threads */
+    /* TODO: change to no. CPUs */
+    args->no_threads = 2;
 
     while ((c = getopt_long(argc, argv, shortopts, longopts, &indexptr)) != -1){
         switch (c) {
@@ -136,12 +133,24 @@ void process_args(int argc, char *const *argv, struct args_t *args)
             args->target->file = optarg;
             /* Helps with freeing in main */
             args->no_targets = 1;
-            args->target->dyn_alloc = 0;
+            args->target->flags &= !FILE_DYN_ALLOC;
             break;
         case 'h':
             /* Help requested */
             print_help(argv[0], stdout);
             exit(0);
+            break;
+        case 't':
+            /* Number of threads */
+            errno = 0;
+            char *conv_end;
+            long int temp_val = strtol(optarg, &conv_end, 10);
+            if (errno != 0 || optarg == conv_end || temp_val < 0) {
+                perror("Error: not a valid number of threads");
+                exit(1);
+            } else {
+                args->no_threads = (unsigned int) temp_val;
+            }
             break;
         case 'v':
             /* Program version */
@@ -173,6 +182,11 @@ void process_args(int argc, char *const *argv, struct args_t *args)
     /* Copy hash type over */
     args->hash = hash_type;
 
+#ifdef NTHREAD
+    /* Must disable threading */
+    args->flags |= ARG_NO_THREAD
+#endif
+
     /* Check whether a string was given as an option argument */
     if (args->target_type == T_FILE) {
         /* Check whether any non-option arguments remain
@@ -193,7 +207,7 @@ void process_args(int argc, char *const *argv, struct args_t *args)
             /* Create the file list head */
             args->target = cur_file = malloc(sizeof(struct file_list_t));
             check_malloc(cur_file);
-            cur_file->dyn_alloc = 0;
+            cur_file->flags &= !FILE_DYN_ALLOC;
             cur_file->file = argv[optind++];
             cur_file->ino = cur_ino;
             args->no_targets++;
@@ -218,7 +232,7 @@ void process_args(int argc, char *const *argv, struct args_t *args)
                 check_malloc(cur_file->next);
                 cur_file = cur_file->next;
 
-                cur_file->dyn_alloc = 0;
+                cur_file->flags &= !FILE_DYN_ALLOC;
                 cur_file->file = argv[optind++];
                 cur_file->ino = cur_ino;
                 args->no_targets++;
@@ -273,9 +287,6 @@ int main(int argc, char *argv[])
 	unsigned int i;
     struct args_t args;
     struct file_list_t *cur_file;
-    FILE *fp;
-    char *hash_out;
-    void *hash_state;
     
 	/* Not in hash yet */
 	in_hash = 0;
@@ -306,251 +317,10 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (args.flags & ARG_NO_HASH) {
-        free_file_list(args.no_targets, args.target);
-        return 0;
+    if (!(args.flags & ARG_NO_HASH)) {
+        do_hash(&args);
+        print_hash(&args);
     }
-
-    /* Loop through all of the targets (file(s)/string) */
-    cur_file = args.target;
-    for (i = 0; i < args.no_targets; i++) {
-        /* Open the current file */
-        if (args.target_type == T_FILE) {
-            fp = fopen(cur_file->file, "rb");
-            if (fp == NULL) {
-                fprintf(stderr, "Error: couldn't open file \"%s\": ", cur_file->file);
-                perror(NULL);
-            }
-        }
-
-        /* Do the correct hash */
-        switch (args.hash) {
-        case H_MD5:
-            /* Initialise MD5 hashing */
-            hash_state = malloc(sizeof(struct md5_state));
-            check_malloc(hash_state);
-            if (!md5_init(hash_state)) {
-                fprintf(stderr, "Error: couldn't initialise MD5 hashing.\n");
-                return 1;
-            }
-
-            if (args.target_type == T_STRING) {
-                /* Hash the string */
-                if (!md5_add_string(hash_state, cur_file->file)) {
-                    fprintf(stderr, "Error: couldn't hash the string.\n");
-                    return 1;
-                }
-            } else if (args.target_type == T_FILE) {
-                /* Hash the file */
-                if (!md5_add_file(hash_state, fp)) {
-                    fprintf(stderr, "Error: couldn't hash the file \"%s\".\n",
-                        cur_file->file);
-                    return 1;
-                }
-            }
-
-            /* Get the hash */
-            hash_out = malloc(33 * sizeof(char));
-            check_malloc(hash_out);
-            if (!md5_get_hash_str(hash_state, hash_out)) {
-                fprintf(stderr, "Error: couldn't complete hashing.\n");
-                return 1;
-            }
-
-            /* Print the hash */
-            if (args.target_type == T_STRING) {
-                printf("\"%s\" = %s\n", cur_file->file, hash_out);
-            } else {
-                printf("%s  %s\n", hash_out, cur_file->file);
-            }
-
-            free(hash_out);
-            free(hash_state);
-            break;
-        default:
-            printf("Error: hash function not implemented yet.\n");
-            return 1;
-        }
-        
-        /* Next file */
-        cur_file = cur_file->next;
-    }
-
-#if 0
-	/* Array of 32 bit unsigned ints for MD5, SHA1, SHA256, SHA224 */
-	unsigned int i_hash_out[8];
-	/* Array of 64 bit unsigned ints for SHA512, SHA384 */
-	unsigned long long ll_hash_out[8];
-	/* String for the hash representation */
-	char hash_out_str[129];
-	/* File pointer for file input */
-	FILE *fp;
-
-	/* Start processing the hash */
-	switch (args.hash) {
-	case H_MD5:
-		/* Initialise MD5 hashing */
-		md5_init();
-
-		if (args.target_type == T_STRING) {
-			/* Hash the string */
-			md5_add_string(args->target->file);
-		} else if (args.target_type == T_FILE) {
-			/* Hash the file */
-			fp = fopen(args->target->file, "r");
-			if (fp != NULL)
-				md5_add_file(fp);
-		}
-
-		/* Get the hash */
-		md5_get_hash(i_hash_out);
-
-		/* Get the string representation of the hash */
-		sprintf(hash_out_str, "%08x%08x%08x%08x",
-				i_hash_out[0], i_hash_out[1],
-				i_hash_out[2], i_hash_out[3]);
-
-		/* Swap the characters around */
-		/* Outer loop: 4 groups of 8 */
-		for (i = 0; i < 4; i++) {
-			/* Inner loop: 2 pairs of 2 characters */
-			int j;
-			for (j = 0; j < 2; j++) {
-				char temp[2];
-
-				/* Save the left pair */
-				temp[0] = hash_out_str[(i * 8) + (j * 2)];
-                temp[1] = hash_out_str[(i * 8) + (j * 2) + 1];
-
-                /* Copy the right pair across */
-                hash_out_str[(i * 8) + (j * 2)] =
-                		hash_out_str[(i * 8) + (6 - (j * 2))];
-                hash_out_str[(i * 8) + (j * 2) + 1] =
-                		hash_out_str[(i * 8) + (7 - (j * 2))];
-
-                /* Copy the original left to the right */
-                hash_out_str[(i * 8) + (6 - (j * 2))] = temp[0];
-                hash_out_str[(i * 8) + (7 - (j * 2))] = temp[1];
-			}
-		}
-
-		/* Print the string */
-		printf("%s\n", hash_out_str);
-		break;
-	case H_SHA1:
-		/* Initialise SHA1 hashing */
-		sha1_init();
-
-		if (string_input && string_to_process != NULL) {
-			/* Hash the string */
-			sha1_add_string(string_to_process);
-		} else if (file_input && file_to_process != NULL) {
-			/* Hash the file */
-			fp = fopen(file_to_process, "r");
-			if (fp != NULL)
-				sha1_add_file(fp);
-		}
-
-		/* Get the hash */
-		sha1_get_hash(i_hash_out);
-
-		/* Get the string representation and print */
-		printf("%08x%08x%08x%08x%08x\n",
-				i_hash_out[0], i_hash_out[1], i_hash_out[2],
-				i_hash_out[3], i_hash_out[4]);
-		break;
-	case H_SHA256:
-		/* Initialise SHA256 hashing */
-		sha2_init(SHA256);
-
-		if (string_input && string_to_process != NULL) {
-			/* Hash the string */
-			sha2_add_string(string_to_process);
-		} else if (file_input && file_to_process != NULL) {
-			/* Hash the file */
-			fp = fopen(file_to_process, "r");
-			if (fp != NULL)
-				sha2_add_file(fp);
-		}
-
-		/* Get the hash */
-		sha2_get_hash(ll_hash_out);
-
-		/* Get the string representation and print */
-		printf("%08llx%08llx%08llx%08llx%08llx%08llx%08llx%08llx\n",
-			ll_hash_out[0], ll_hash_out[1], ll_hash_out[2], ll_hash_out[3],
-			ll_hash_out[4], ll_hash_out[5], ll_hash_out[6], ll_hash_out[7]);
-		break;
-	case H_SHA224:
-		/* Initialise SHA224 hashing */
-		sha2_init(SHA224);
-
-		if (string_input && string_to_process != NULL) {
-			/* Hash the string */
-			sha2_add_string(string_to_process);
-		} else if (file_input && file_to_process != NULL) {
-			/* Hash the file */
-			fp = fopen(file_to_process, "r");
-			if (fp != NULL)
-				sha2_add_file(fp);
-		}
-
-		/* Get the hash */
-		sha2_get_hash(ll_hash_out);
-
-		/* Get the string representation and print */
-		printf("%08llx%08llx%08llx%08llx%08llx%08llx%08llx\n",
-			ll_hash_out[0], ll_hash_out[1], ll_hash_out[2], ll_hash_out[3],
-			ll_hash_out[4], ll_hash_out[5], ll_hash_out[6]);
-		break;
-	case H_SHA512:
-		/* Initialise SHA512 hashing */
-		sha2_init(SHA512);
-
-		if (string_input && string_to_process != NULL) {
-			/* Hash the string */
-			sha2_add_string(string_to_process);
-		} else if (file_input && file_to_process != NULL) {
-			/* Hash the file */
-			fp = fopen(file_to_process, "r");
-			if (fp != NULL)
-				sha2_add_file(fp);
-		}
-
-		/* Get the hash */
-		sha2_get_hash(ll_hash_out);
-
-		/* Get the string representation and print */
-		printf("%016llx%016llx%016llx%016llx%016llx%016llx%016llx%016llx\n",
-			ll_hash_out[0], ll_hash_out[1], ll_hash_out[2], ll_hash_out[3],
-			ll_hash_out[4], ll_hash_out[5], ll_hash_out[6], ll_hash_out[7]);
-		break;
-	case H_SHA384:
-		/* Initialise SHA384 hashing */
-		sha2_init(SHA384);
-
-		if (string_input && string_to_process != NULL) {
-			/* Hash the string */
-			sha2_add_string(string_to_process);
-		} else if (file_input) {
-			/* Hash the file */
-			fp = fopen(file_to_process, "r");
-			if (fp != NULL)
-				sha2_add_file(fp);
-		}
-
-		/* Get the hash */
-		sha2_get_hash(ll_hash_out);
-
-		/* Get the string representation and print */
-		printf("%016llx%016llx%016llx%016llx%016llx%016llx\n",
-				ll_hash_out[0], ll_hash_out[1], ll_hash_out[2],
-				ll_hash_out[3], ll_hash_out[4], ll_hash_out[5]);
-		break;
-    default:
-        break;
-	}
-#endif
 
     free_file_list(args.no_targets, args.target);
 

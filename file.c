@@ -89,7 +89,7 @@ void free_file_list(unsigned int n_files, struct file_list_t *cur)
     for (i = 0; i < n_files; i++) {
         prev = cur;
         cur = cur->next;
-        if (prev->dyn_alloc)
+        if (prev->flags & FILE_DYN_ALLOC)
             free(prev->file);
         free(prev);
     }
@@ -129,7 +129,7 @@ unsigned int expand_files(unsigned int n_files, struct file_list_t **head)
             if (n_expanded) {
                 if (file_listed(cur_ino, n_expanded, dirs_expanded_head)) {
                     /* Already expanded, remove and continue */
-                    if (cur->dyn_alloc)
+                    if (cur->flags & FILE_DYN_ALLOC)
                         free(cur->file);
                     free(cur);
 
@@ -148,7 +148,7 @@ unsigned int expand_files(unsigned int n_files, struct file_list_t **head)
                     check_malloc(cur_dir_expanded->next);
                     cur_dir_expanded = cur_dir_expanded->next;
 
-                    cur_dir_expanded->dyn_alloc = 0;
+                    cur_dir_expanded->flags &= !FILE_DYN_ALLOC;
                     cur_dir_expanded->file = NULL;
                     cur_dir_expanded->ino = cur_ino;
                     cur_dir_expanded->next = NULL;
@@ -159,7 +159,7 @@ unsigned int expand_files(unsigned int n_files, struct file_list_t **head)
                 dirs_expanded_head = cur_dir_expanded = malloc(sizeof(struct file_list_t));
                 check_malloc(cur_dir_expanded);
 
-                cur_dir_expanded->dyn_alloc = 0;
+                cur_dir_expanded->flags &= !FILE_DYN_ALLOC;
                 cur_dir_expanded->file = NULL;
                 cur_dir_expanded->ino = cur_ino;
                 cur_dir_expanded->next = NULL;
@@ -172,7 +172,7 @@ unsigned int expand_files(unsigned int n_files, struct file_list_t **head)
             strcpy(temp_dir, cur->file);
 
             /* Remove the directory from the list */
-            if (cur->dyn_alloc)
+            if (cur->flags & FILE_DYN_ALLOC)
                 free(cur->file);
             free(cur);
 
@@ -211,7 +211,7 @@ unsigned int expand_files(unsigned int n_files, struct file_list_t **head)
                         /* Create the new list entry */
                         new_entry = malloc(sizeof(struct file_list_t));
                         check_malloc(new_entry);
-                        new_entry->dyn_alloc = 1;
+                        new_entry->flags |= FILE_DYN_ALLOC;
                         new_entry->file = temp_file;
                         new_entry->ino = cur_ino;
                         

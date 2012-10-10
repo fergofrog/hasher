@@ -1,6 +1,6 @@
 /**
- * @file file.h
- * Header for file.c
+ * @file hash.h
+ * Header for hash.c
  * @author	FergoFrog <fergofrog@fergofrog.com>
  * @version 0.4
  *
@@ -20,29 +20,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef FILE_H_
-#define FILE_H_
+#ifndef HASH_H_
+#define HASH_H_
 
-#define FILE_HASHED     1 << 0
-#define FILE_DYN_ALLOC  1 << 1
+void do_hash(struct args_t *);
+void print_hash(struct args_t *);
 
-/** File list struct */
-struct file_list_t {
-    unsigned char flags;
-    char *file;
-    char *hash;
-    ino_t ino;
-    struct file_list_t *next;
-};
-
-ino_t is_file(char *);
-ino_t is_dir(char *);
-ino_t is_filedir(char *);
-
-unsigned int expand_files(unsigned int, struct file_list_t **);
-
-char file_listed(ino_t, unsigned int, struct file_list_t *);
-void free_file_list(unsigned int, struct file_list_t *);
-
-
-#endif /* FILE_H_ */
+#endif /* HASH_H_ */

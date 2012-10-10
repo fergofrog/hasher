@@ -27,6 +27,8 @@
 #define MD5_CHUNK_NUM_WORDS 16
 #define MD5_CHUNK_LEN (MD5_CHUNK_WORD_SIZE * MD5_CHUNK_NUM_WORDS)
 
+#define MD5_STRING_LEN 32
+
 struct md5_state {
 	unsigned int hash[4];
 	unsigned int length;

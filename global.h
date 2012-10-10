@@ -2,10 +2,10 @@
  * @file global.h
  * Header for global.c
  * @author	FergoFrog <fergofrog@fergofrog.com>
- * @version 0.3
+ * @version 0.4
  *
  * @section LICENSE
- * Copyright (C) 2011 FergoFrog
+ * Copyright (C) 2011-2012 FergoFrog
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,6 +33,10 @@
 
 #define min(A, B) ((A) < (B) ? (A) : (B))
 
+/** Do not hash flag */
+#define ARG_NO_HASH     1 << 0
+#define ARG_NO_THREAD   1 << 1
+
 /** Hash types known */
 enum hash_t {
     H_MD5    = 0,
@@ -43,6 +47,20 @@ enum hash_t {
     H_SHA384 = 5
 };
 static char *hash_names[6] = {"md5", "sha1", "sha256", "sha224", "sha512", "sha384"};
+
+enum target_t {
+    T_FILE,
+    T_STRING
+};
+
+struct args_t {
+    enum hash_t hash;
+    enum target_t target_type;
+    unsigned int flags;
+    unsigned int no_threads;
+    unsigned int no_targets;
+    struct file_list_t *target;
+};
 
 extern enum hash_t hash_algorithm;
 extern unsigned int i_hash[8];
