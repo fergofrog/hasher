@@ -29,6 +29,7 @@
 #include <string.h>
 #include <getopt.h>
 #include <errno.h>
+#include <unistd.h>
 
 #include "global.h"
 #include "file.h"
@@ -44,6 +45,15 @@
 #define TRUE 1
 /** Boolean False definition */
 #define FALSE 0
+
+int num_processors()
+{
+    int n = 1;
+#ifdef _SC_NPROCESSORS_ONLN
+    n = sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+    return n >= 1 ? n : 1;
+}
 
 /** Print version to stdout */
 void print_version()
@@ -61,8 +71,8 @@ void print_help(char *program, FILE *fout)
 	fprintf(fout, "usage: %s [--algo] [-s string] [-hv] [file]\n\n",
 			program);
 	fprintf(fout, "\t-s, --string\tstring input\n");
-#ifndef NTHERAD
-    fprintf(fout, "\t-t, --threads\tnumber of thread (default: no cores, 0 to disable)");
+#ifndef NTHREAD
+    fprintf(fout, "\t-t, --threads\tnumber of threads (default: %d)\n", num_processors());
 #endif
 	fprintf(fout, "\t-h, --help\tthis message\n");
     fprintf(fout, "\t-v, --version\tversion info");
@@ -113,9 +123,10 @@ void process_args(int argc, char *const *argv, struct args_t *args)
     /* Assuming it's a file input, unless string given */
     args->target_type = T_FILE;
 
-    /* Default of 2 threads */
-    /* TODO: change to no. CPUs */
-    args->no_threads = 2;
+#ifndef NTHREAD
+    /* No threads defaults to no. CPUs */
+    args->no_threads = num_processors();
+#endif
 
     while ((c = getopt_long(argc, argv, shortopts, longopts, &indexptr)) != -1){
         switch (c) {

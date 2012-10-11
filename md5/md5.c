@@ -108,6 +108,7 @@ char md5_add_string(struct md5_state *state, char *str)
 
         str_pos += n;
         state->cur_chunk_pos += n;
+        state->length += n * 8;
         str_length -= n;
 
         if (state->cur_chunk_pos >= 64) {

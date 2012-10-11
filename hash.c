@@ -126,6 +126,7 @@ void print_hash(struct args_t *args)
         *file_arg = cur_file->file;
         *hash_arg = cur_file->hash;
         printf(format_str, fmt_first_arg, fmt_second_arg);
+        cur_file = cur_file->next;
     }
 }
 
@@ -158,6 +159,7 @@ void *do_md5(void *thread_data_v)
         for (i = 0; i < new_file_idx - cur_file_idx; i++) {
             cur_file = cur_file->next;
         }
+        cur_file_idx = new_file_idx;
         
         /* Initialise MD5 hashing */
         hash_state = malloc(sizeof(struct md5_state));
